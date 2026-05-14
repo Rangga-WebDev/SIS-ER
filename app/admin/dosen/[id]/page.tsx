@@ -604,7 +604,11 @@ export default async function AdminDosenDetailPage({
                                 <div className="border-t border-slate-200 bg-slate-50 p-5 xl:border-l xl:border-t-0">
                                   <VerifySubmissionForm
                                     submissionId={submission.id}
-                                    currentStatus={submission.status}
+                                    currentStatus={
+                                      submission.status === "NOT_UPLOADED"
+                                        ? undefined
+                                        : submission.status
+                                    }
                                     currentNote={submission.adminNote}
                                   />
                                 </div>

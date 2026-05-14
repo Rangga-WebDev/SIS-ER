@@ -1,5 +1,4 @@
 /** @format */
-import { DocumentStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +17,13 @@ import {
   UsersRound,
   XCircle,
 } from "lucide-react";
+
+type DocumentStatus =
+  | "NOT_UPLOADED"
+  | "PENDING"
+  | "VALID"
+  | "REVISION"
+  | "REJECTED";
 
 type RecentSubmission = {
   id: string;

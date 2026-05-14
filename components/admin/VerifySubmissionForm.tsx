@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DocumentStatus } from "@prisma/client";
+
 import {
   AlertCircle,
   CheckCircle2,
@@ -13,6 +13,8 @@ import {
   RotateCcw,
   XCircle,
 } from "lucide-react";
+
+type DocumentStatus = "PENDING" | "VALID" | "REVISION" | "REJECTED";
 
 type Props = {
   submissionId: string;
