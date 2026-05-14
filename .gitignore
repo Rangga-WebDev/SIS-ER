@@ -20,9 +20,7 @@ dist
 # prisma
 prisma/dev.db
 prisma/*.db
-prisma/seed.ts
-prisma/migrations
-prisma/schema.prisma
+
 
 # logs
 npm-debug.log*
