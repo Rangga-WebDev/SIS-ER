@@ -37,13 +37,6 @@ npx prisma db seed
 npm run dev
 ```
 
-Akun admin seed:
-
-```txt
-Email    : admin@kampus.ac.id
-Password : Admin123!
-```
-
 ## Deploy Vercel
 
 Tambahkan environment variables ke Vercel Project Settings:
