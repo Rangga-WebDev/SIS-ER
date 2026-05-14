@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7fbff;
+  --foreground: #0f172a;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@keyframes shimmer-move {
+  0% { transform: translateX(-120%) skewX(-12deg); }
+  100% { transform: translateX(220%) skewX(-12deg); }
+}
+
+@keyframes soft-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes aurora-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.08); }
+}
+
+.animate-soft-float { animation: soft-float 4s ease-in-out infinite; }
+.animate-aurora-pulse { animation: aurora-pulse 5s ease-in-out infinite; }
+
+.creative-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.42), transparent);
+  transform: translateX(-120%) skewX(-12deg);
+}
+
+.creative-shimmer:hover::before { animation: shimmer-move .9s ease forwards; }
