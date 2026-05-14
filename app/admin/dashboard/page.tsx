@@ -1,5 +1,5 @@
 /** @format */
-
+import { DocumentStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -18,6 +18,20 @@ import {
   UsersRound,
   XCircle,
 } from "lucide-react";
+
+type RecentSubmission = {
+  id: string;
+  status: DocumentStatus;
+  lecturer: {
+    fullName: string;
+  };
+  requirement: {
+    name: string;
+    category: {
+      name: string;
+    };
+  };
+};
 
 function percent(value: number, total: number) {
   if (total === 0) return 0;
@@ -217,7 +231,7 @@ export default async function AdminDashboardPage() {
 
             <div className="grid gap-3">
               {recentSubmissions.length > 0 ? (
-                recentSubmissions.map((submission) => (
+                recentSubmissions.map((submission: RecentSubmission) => (
                   <div
                     key={submission.id}
                     className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between"
