@@ -1,7 +1,8 @@
 /** @format */
 
 import { prisma } from "@/lib/prisma";
-import type { NotificationType, Prisma } from "@prisma/client";
+import type { NotificationType } from "@/lib/app-types";
+import type { Prisma } from "@prisma/client";
 
 type NotificationMetadata = Prisma.InputJsonValue;
 

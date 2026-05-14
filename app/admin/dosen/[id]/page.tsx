@@ -28,7 +28,7 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react";
-import type { DocumentStatus } from "@prisma/client";
+import type { DocumentStatus } from "@/lib/app-types";
 import type { ReactNode } from "react";
 
 function formatDate(date?: Date | null) {

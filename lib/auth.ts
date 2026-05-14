@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { jwtVerify, type JWTPayload } from "jose";
 import { prisma } from "@/lib/prisma";
-import type { AccountStatus, Role } from "@prisma/client";
+import type { AccountStatus, Role } from "@/lib/app-types";
 
 export const SESSION_COOKIE_NAME = "sister_pak_session";
 
