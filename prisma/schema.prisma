@@ -47,6 +47,14 @@ enum NotificationType {
   SYSTEM
 }
 
+enum DupakStatus {
+  DRAFT
+  SUBMITTED
+  REVISION
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String        @id @default(cuid())
   email        String        @unique
@@ -84,7 +92,8 @@ model LecturerProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  submissions DocumentSubmission[]
+  submissions      DocumentSubmission[]
+  dupakSubmissions DupakSubmission?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -273,4 +282,37 @@ model Notification {
   @@index([isRead])
   @@index([type])
   @@index([createdAt])
+}
+
+model DupakSubmission {
+  id String @id @default(cuid())
+
+  nomor String?
+  instansi String?
+  masaPenilaianStart DateTime?
+  masaPenilaianEnd   DateTime?
+
+  personalData Json?
+  creditData   Json?
+
+  supportNotes String?
+
+  status            DupakStatus @default(DRAFT)
+  currentStep       Int         @default(1)
+  completionPercent Int         @default(0)
+
+  adminNote String?
+
+  lecturerId String          @unique
+  lecturer   LecturerProfile @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
+
+  submittedAt DateTime?
+  verifiedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([lecturerId])
+  @@index([completionPercent])
 }

@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ClipboardList } from "lucide-react";
 import LogoutButton from "@/components/auth/LogoutButton";
 import NotificationCenter from "@/components/dashboard/NotificationCenter";
 import Image from "next/image";
@@ -53,6 +54,12 @@ const dosenNav: NavItem[] = [
     desc: "Kelola berkas",
     icon: <UploadCloud size={19} />,
   },
+  {
+    href: "/dosen/dupak",
+    label: "DUPAK",
+    desc: "Isi formulir DUPAK",
+    icon: <ClipboardList size={19} />,
+  },
 ];
 
 const adminNav: NavItem[] = [
@@ -67,6 +74,12 @@ const adminNav: NavItem[] = [
     label: "Daftar Dosen",
     desc: "Verifikasi berkas",
     icon: <UsersRound size={19} />,
+  },
+  {
+    href: "/admin/dupak",
+    label: "Monitoring DUPAK",
+    desc: "Pantau progres DUPAK dosen",
+    icon: <ClipboardList size={19} />,
   },
 ];
 

@@ -17,3 +17,10 @@ export type NotificationType =
   | "DOCUMENT_REVISION"
   | "DOCUMENT_REJECTED"
   | "SYSTEM";
+
+export type DupakStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "REVISION"
+  | "APPROVED"
+  | "REJECTED";
