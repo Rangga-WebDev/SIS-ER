@@ -108,7 +108,7 @@ export default function Footer({
           </div>
         </div>
         <div className="mt-14 flex flex-col gap-6 border-t border-white/10 pt-8 text-sm text-slate-400 md:flex-row md:items-center md:justify-between">
-          <p>© 2026 SISTER PAK. Built for modern academic operations.</p>
+          <p>© 2026 JAFUNG SMART. Built for academic operations.</p>
         </div>
       </div>
     </footer>
