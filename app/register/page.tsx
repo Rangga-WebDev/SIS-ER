@@ -1,6 +1,6 @@
 /** @format */
 import RegisterForm from "@/components/auth/RegisterForm";
-export const metadata = { title: "Register Dosen | SISTER PAK" };
+export const metadata = { title: "Register Dosen | JAFUNG SMART" };
 export default function RegisterPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f7fbff] px-6 py-10 text-slate-900">

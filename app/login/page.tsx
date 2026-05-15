@@ -1,6 +1,6 @@
 /** @format */
 import LoginForm from "@/components/auth/LoginForm";
-export const metadata = { title: "Login | SISTER PAK" };
+export const metadata = { title: "Login | JAFUNG SMART" };
 export default function LoginPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#f7fbff] px-6 py-10 text-slate-900">
