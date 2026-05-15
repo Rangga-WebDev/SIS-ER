@@ -2,16 +2,20 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CheckCircle2,
   ClipboardList,
+  Download,
   Eye,
+  FileUp,
   Loader2,
+  Paperclip,
   Save,
   Send,
+  UploadCloud,
 } from "lucide-react";
 import {
   DUPAK_PERSONAL_FIELDS,
@@ -22,6 +26,18 @@ import {
   type DupakPersonalData,
 } from "@/lib/dupak-template";
 import DupakPreview from "@/components/dupak/DupakPreview";
+import FilePreviewModal from "@/components/documents/FilePreviewModal";
+
+type DupakEvidenceItem = {
+  id: string;
+  rowCode: string;
+  rowLabel: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  note: string | null;
+  uploadedAt: string;
+};
 
 type InitialDupak = {
   nomor: string;
@@ -32,28 +48,62 @@ type InitialDupak = {
   creditData: DupakCreditData;
   supportNotes: string;
   currentStep: number;
+  evidences: DupakEvidenceItem[];
 };
 
 type Props = {
   initialData: InitialDupak;
 };
 
+function formatFileSize(size?: number | null) {
+  if (!size) return "-";
+  return `${(size / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function formatDateTime(date?: string | null) {
+  if (!date) return "-";
+
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(date));
+}
+
 export default function DupakFormClient({ initialData }: Props) {
   const router = useRouter();
 
   const [step, setStep] = useState(initialData.currentStep || 1);
   const [saving, setSaving] = useState(false);
+
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
 
-  const [form, setForm] = useState<InitialDupak>(initialData);
+  const [form, setForm] = useState<InitialDupak>({
+    ...initialData,
+    evidences: initialData.evidences || [],
+  });
 
   const inputRows = useMemo(
     () => DUPAK_TEMPLATE_ROWS.filter((row) => row.type === "ITEM"),
     [],
   );
+
+  const evidenceMap = useMemo(() => {
+    const map = new Map<string, DupakEvidenceItem>();
+
+    for (const evidence of form.evidences) {
+      if (!map.has(evidence.rowCode)) {
+        map.set(evidence.rowCode, evidence);
+      }
+    }
+
+    return map;
+  }, [form.evidences]);
 
   const filledCreditRows = inputRows.filter((row) => {
     const value = form.creditData[row.code];
@@ -116,6 +166,19 @@ export default function DupakFormClient({ initialData }: Props) {
     }));
   };
 
+  const upsertEvidence = (evidence: DupakEvidenceItem) => {
+    setForm((current) => {
+      const filtered = current.evidences.filter(
+        (item) => item.rowCode !== evidence.rowCode,
+      );
+
+      return {
+        ...current,
+        evidences: [evidence, ...filtered],
+      };
+    });
+  };
+
   const save = async (action: "SAVE" | "SUBMIT") => {
     setMessage(null);
     setSaving(true);
@@ -127,7 +190,13 @@ export default function DupakFormClient({ initialData }: Props) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...form,
+          nomor: form.nomor,
+          instansi: form.instansi,
+          masaPenilaianStart: form.masaPenilaianStart,
+          masaPenilaianEnd: form.masaPenilaianEnd,
+          personalData: form.personalData,
+          creditData: form.creditData,
+          supportNotes: form.supportNotes,
           currentStep: step,
           action,
         }),
@@ -173,23 +242,36 @@ export default function DupakFormClient({ initialData }: Props) {
             </h2>
 
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
-              Isi data DUPAK secara bertahap. Data dapat disimpan sebagai draft
-              sebelum dikirim ke admin.
+              Isi data DUPAK secara bertahap. Pada bagian angka kredit, unggah
+              bukti dokumen pada setiap baris kegiatan yang relevan.
             </p>
           </div>
 
-          <div className="rounded-3xl bg-slate-950 p-5 text-white">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-              Progress
-            </p>
-            <p className="mt-1 text-4xl font-black">{progress}%</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-3xl bg-slate-950 p-5 text-white">
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                Progress
+              </p>
+              <p className="mt-1 text-4xl font-black">{progress}%</p>
+            </div>
+
+            <div className="rounded-3xl bg-sky-700 p-5 text-white">
+              <p className="text-xs font-black uppercase tracking-widest text-sky-100">
+                Bukti
+              </p>
+              <p className="mt-1 text-4xl font-black">
+                {form.evidences.length}
+              </p>
+            </div>
           </div>
         </div>
 
         <div className="mt-6 h-3 overflow-hidden rounded-full bg-slate-200">
           <div
             className="h-full rounded-full bg-sky-700"
-            style={{ width: `${progress}%` }}
+            style={{
+              width: `${progress}%`,
+            }}
           />
         </div>
       </div>
@@ -211,7 +293,7 @@ export default function DupakFormClient({ initialData }: Props) {
           step={3}
           active={step === 3}
           setStep={setStep}
-          label="Angka Kredit"
+          label="Angka Kredit & Bukti"
         />
         <StepButton
           step={4}
@@ -304,9 +386,15 @@ export default function DupakFormClient({ initialData }: Props) {
       )}
 
       {step === 3 && (
-        <Card title="Unsur yang Dinilai">
+        <Card title="Unsur yang Dinilai dan Bukti Dokumen">
+          <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-6 text-sky-800">
+            Pada setiap baris kegiatan, isi angka kredit dan unggah bukti
+            dokumen pendukung. Bukti dapat berupa PDF, JPG, JPEG, atau PNG
+            maksimal 5 MB.
+          </div>
+
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="w-full min-w-[980px] text-left text-sm">
+            <table className="w-full min-w-[1250px] text-left text-sm">
               <thead>
                 <tr className="bg-slate-950 text-white">
                   <th rowSpan={2} className="border border-slate-700 p-3">
@@ -323,6 +411,12 @@ export default function DupakFormClient({ initialData }: Props) {
                     className="border border-slate-700 p-3 text-center"
                   >
                     Tim Penilai
+                  </th>
+                  <th
+                    rowSpan={2}
+                    className="border border-slate-700 p-3 text-center"
+                  >
+                    Bukti Dokumen
                   </th>
                 </tr>
 
@@ -351,12 +445,13 @@ export default function DupakFormClient({ initialData }: Props) {
               <tbody>
                 {DUPAK_TEMPLATE_ROWS.map((row) => {
                   const value = form.creditData[row.code];
+                  const evidence = evidenceMap.get(row.code) || null;
 
                   if (row.type === "SECTION") {
                     return (
                       <tr key={row.code} className="bg-sky-50">
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="border border-slate-200 p-3 font-black text-sky-900"
                         >
                           {row.label}
@@ -391,6 +486,9 @@ export default function DupakFormClient({ initialData }: Props) {
                           <ReadOnlyCell value={getAssessorTotal(value)} />
                           <ReadOnlyCell value={0} />
                           <ReadOnlyCell value={getAssessorTotal(value)} />
+                          <td className="border border-slate-200 p-3 text-center text-xs font-bold text-slate-400">
+                            Tidak perlu bukti
+                          </td>
                         </>
                       ) : (
                         <>
@@ -420,6 +518,12 @@ export default function DupakFormClient({ initialData }: Props) {
                             }
                           />
                           <ReadOnlyCell value={getAssessorTotal(value)} />
+                          <EvidenceCell
+                            rowCode={row.code}
+                            rowLabel={row.label}
+                            evidence={evidence}
+                            onUploaded={upsertEvidence}
+                          />
                         </>
                       )}
                     </tr>
@@ -430,14 +534,14 @@ export default function DupakFormClient({ initialData }: Props) {
           </div>
 
           <div className="mt-5">
-            <Field label="Lampiran Pendukung DUPAK">
+            <Field label="Lampiran Pendukung DUPAK Umum">
               <textarea
                 value={form.supportNotes}
                 onChange={(event) =>
                   updateRoot("supportNotes", event.target.value)
                 }
                 className="input-dupak min-h-32"
-                placeholder="Tuliskan daftar lampiran pendukung DUPAK..."
+                placeholder="Tuliskan daftar lampiran pendukung DUPAK secara umum..."
               />
             </Field>
           </div>
@@ -612,6 +716,166 @@ function ReadOnlyCell({ value }: { value: number }) {
   return (
     <td className="border border-slate-200 bg-slate-50 p-2 text-center font-black text-slate-800">
       {value || "-"}
+    </td>
+  );
+}
+
+function EvidenceCell({
+  rowCode,
+  rowLabel,
+  evidence,
+  onUploaded,
+}: {
+  rowCode: string;
+  rowLabel: string;
+  evidence: DupakEvidenceItem | null;
+  onUploaded: (evidence: DupakEvidenceItem) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    setLocalError(null);
+
+    try {
+      const formData = new FormData();
+
+      formData.append("rowCode", rowCode);
+      formData.append("rowLabel", rowLabel);
+      formData.append("file", file);
+
+      const response = await fetch("/api/dosen/dupak/evidence", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        setLocalError(json.message || "Gagal upload bukti.");
+        return;
+      }
+
+      const uploadedEvidence = json.evidence as {
+        id: string;
+        rowCode: string;
+        rowLabel: string;
+        fileName: string;
+        fileSize: number;
+        mimeType: string;
+        note: string | null;
+        uploadedAt: string;
+      };
+
+      onUploaded({
+        id: uploadedEvidence.id,
+        rowCode: uploadedEvidence.rowCode,
+        rowLabel: uploadedEvidence.rowLabel,
+        fileName: uploadedEvidence.fileName,
+        fileSize: uploadedEvidence.fileSize,
+        mimeType: uploadedEvidence.mimeType,
+        note: uploadedEvidence.note,
+        uploadedAt: uploadedEvidence.uploadedAt,
+      });
+    } catch {
+      setLocalError("Tidak dapat terhubung ke server.");
+    } finally {
+      setUploading(false);
+
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
+    }
+  };
+
+  return (
+    <td className="border border-slate-200 p-3 align-top">
+      <div className="min-w-[260px] space-y-3">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+
+            if (file) {
+              upload(file);
+            }
+          }}
+        />
+
+        <button
+          type="button"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs font-black text-sky-700 transition hover:bg-sky-100 disabled:opacity-60"
+        >
+          {uploading ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : evidence ? (
+            <FileUp size={16} />
+          ) : (
+            <UploadCloud size={16} />
+          )}
+          {uploading
+            ? "Mengupload..."
+            : evidence
+              ? "Ganti Bukti"
+              : "Upload Bukti"}
+        </button>
+
+        {evidence ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-3">
+            <div className="flex items-start gap-2">
+              <Paperclip size={16} className="mt-0.5 shrink-0 text-slate-400" />
+
+              <div className="min-w-0">
+                <p className="truncate text-xs font-black text-slate-800">
+                  {evidence.fileName}
+                </p>
+                <p className="mt-1 text-[11px] font-bold text-slate-400">
+                  {formatFileSize(evidence.fileSize)} •{" "}
+                  {formatDateTime(evidence.uploadedAt)}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <FilePreviewModal
+                title={`Bukti ${rowLabel}`}
+                fileName={evidence.fileName}
+                mimeType={evidence.mimeType}
+                previewUrl={`/api/files/dupak-evidence/${evidence.id}`}
+                downloadUrl={`/api/files/dupak-evidence/${evidence.id}?download=1`}
+                buttonLabel="Preview"
+              />
+
+              <a
+                href={`/api/files/dupak-evidence/${evidence.id}?download=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700 transition hover:bg-slate-50"
+              >
+                <Download size={14} />
+                Download
+              </a>
+            </div>
+          </div>
+        ) : (
+          <p className="text-center text-xs font-bold text-slate-400">
+            Belum ada bukti
+          </p>
+        )}
+
+        {localError ? (
+          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+            {localError}
+          </p>
+        ) : null}
+      </div>
     </td>
   );
 }

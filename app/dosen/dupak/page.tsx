@@ -7,48 +7,72 @@ import AppShell from "@/components/dashboard/AppShell";
 import DupakFormClient from "@/components/dosen/DupakFormClient";
 import type { DupakCreditData, DupakPersonalData } from "@/lib/dupak-template";
 
-/**
- * Helper untuk mengubah Date ke string input date yyyy-mm-dd
- */
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function toDateInput(date?: Date | null) {
   if (!date) return "";
   return date.toISOString().slice(0, 10);
 }
 
-/**
- * Helper untuk memastikan object
- */
 function toObject<T>(value: unknown, fallback: T): T {
-  if (!value || typeof value !== "object" || Array.isArray(value))
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return fallback;
+  }
+
   return value as T;
 }
 
 export default async function DosenDupakPage() {
   const user = await getCurrentUser();
 
-  // Redirect jika belum login atau bukan dosen
-  if (!user || user.role !== "DOSEN") redirect("/login");
+  if (!user) redirect("/login");
+  if (user.role !== "DOSEN") redirect("/login");
 
   const lecturer = user.lecturerProfile;
 
   if (!lecturer) redirect("/login");
 
-  // Ambil submission DUPAK dosen
   const submission = await prisma.dupakSubmission.findUnique({
-    where: { lecturerId: lecturer.id },
+    where: {
+      lecturerId: lecturer.id,
+    },
+    include: {
+      evidences: {
+        orderBy: {
+          uploadedAt: "desc",
+        },
+        select: {
+          id: true,
+          rowCode: true,
+          rowLabel: true,
+          fileName: true,
+          fileSize: true,
+          mimeType: true,
+          note: true,
+          uploadedAt: true,
+        },
+      },
+    },
   });
 
-  // Default values jika submission belum ada
+  const evidences =
+    submission?.evidences.map((evidence) => ({
+      id: evidence.id,
+      rowCode: evidence.rowCode,
+      rowLabel: evidence.rowLabel,
+      fileName: evidence.fileName,
+      fileSize: evidence.fileSize,
+      mimeType: evidence.mimeType,
+      note: evidence.note,
+      uploadedAt: evidence.uploadedAt.toISOString(),
+    })) || [];
+
   const initialData = {
     nomor: submission?.nomor ?? "",
     instansi: submission?.instansi ?? lecturer.institution ?? "",
-    masaPenilaianStart: submission?.masaPenilaianStart
-      ? submission.masaPenilaianStart.toISOString().slice(0, 10)
-      : "",
-    masaPenilaianEnd: submission?.masaPenilaianEnd
-      ? submission.masaPenilaianEnd.toISOString().slice(0, 10)
-      : "",
+    masaPenilaianStart: toDateInput(submission?.masaPenilaianStart),
+    masaPenilaianEnd: toDateInput(submission?.masaPenilaianEnd),
     personalData: toObject<DupakPersonalData>(submission?.personalData, {
       nama: lecturer.fullName,
       nidnOrNuptk: lecturer.nidnOrNuptk,
@@ -57,14 +81,15 @@ export default async function DosenDupakPage() {
     }),
     creditData: toObject<DupakCreditData>(submission?.creditData, {}),
     supportNotes: submission?.supportNotes ?? "",
-    currentStep: submission?.currentStep ?? 1, // default step 1
+    currentStep: submission?.currentStep ?? 1,
+    evidences,
   };
 
   return (
     <AppShell
       role="DOSEN"
       title="Pengisian DUPAK"
-      subtitle="Isi format Daftar Usul Penetapan Angka Kredit secara bertahap."
+      subtitle="Isi format Daftar Usul Penetapan Angka Kredit dan unggah bukti dokumen per baris kegiatan."
     >
       <DupakFormClient initialData={initialData} />
     </AppShell>

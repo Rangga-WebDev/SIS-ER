@@ -306,6 +306,8 @@ model DupakSubmission {
   lecturerId String          @unique
   lecturer   LecturerProfile @relation(fields: [lecturerId], references: [id], onDelete: Cascade)
 
+  evidences DupakEvidence[]
+
   submittedAt DateTime?
   verifiedAt  DateTime?
 
@@ -315,4 +317,32 @@ model DupakSubmission {
   @@index([status])
   @@index([lecturerId])
   @@index([completionPercent])
+}
+
+model DupakEvidence {
+  id String @id @default(cuid())
+
+  rowCode  String
+  rowLabel String
+
+  fileName    String
+  fileSize    Int
+  mimeType    String
+  storagePath String
+
+  note String?
+
+  uploaderId    String?
+  uploaderEmail String?
+
+  dupakSubmissionId String
+  dupakSubmission   DupakSubmission @relation(fields: [dupakSubmissionId], references: [id], onDelete: Cascade)
+
+  uploadedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([dupakSubmissionId])
+  @@index([rowCode])
+  @@index([mimeType])
+  @@index([uploadedAt])
 }
