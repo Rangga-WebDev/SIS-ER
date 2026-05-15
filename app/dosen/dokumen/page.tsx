@@ -44,6 +44,7 @@ const statusFilters = [
 
 function getCategoryIcon(code: string) {
   if (code === "ANGKA_KREDIT") return <Award size={25} />;
+  if (code === "IKD") return <FileText size={25} />;
   if (code === "SYARAT_KHUSUS") return <ShieldCheck size={25} />;
   if (code === "DOKUMEN_REKOMENDASI") return <FileCheck2 size={25} />;
   return <BookOpenCheck size={25} />;
@@ -55,6 +56,14 @@ function getCategoryTone(code: string) {
       icon: "bg-sky-100 text-sky-700",
       bar: "bg-sky-700",
       chip: "border-sky-200 bg-sky-50 text-sky-700",
+    };
+  }
+
+  if (code === "IKD") {
+    return {
+      icon: "bg-blue-100 text-blue-700",
+      bar: "bg-blue-700",
+      chip: "border-blue-200 bg-blue-50 text-blue-700",
     };
   }
 

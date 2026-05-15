@@ -3,239 +3,324 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 
-async function main() {
-  const adminEmail = "admin@kampus.ac.id";
-  const adminPassword = "Admin123!";
+const allowedMimeTypes = ["application/pdf", "image/jpeg", "image/png"];
 
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
+type RequirementSeed = {
+  code: string;
+  name: string;
+  description?: string;
+  inputType?: "FILE" | "URL" | "FILE_AND_URL" | "METADATA_ONLY";
+  order: number;
+  isRequired?: boolean;
+  isYearly?: boolean;
+  yearStart?: number | null;
+  yearEnd?: number | null;
+  requiresLetterNumber?: boolean;
+  requiresLetterDate?: boolean;
+  requiresExternalUrl?: boolean;
+  helperText?: string | null;
+  sampleUrl?: string | null;
+};
+
+type CategorySeed = {
+  code: string;
+  name: string;
+  description?: string;
+  order: number;
+  requirements: RequirementSeed[];
+};
+
+const documentCategories: CategorySeed[] = [
+  {
+    code: "PROFIL_KEPAKARAN",
+    name: "Profil dan Kepakaran",
+    description:
+      "Dokumen dan metadata yang berkaitan dengan identitas akademik, kepakaran, dan profil keilmuan dosen.",
+    order: 1,
+    requirements: [
+      {
+        code: "THESIS_DISERTASI",
+        name: "Disertasi/Thesis Pendidikan Tertinggi",
+        description:
+          "Halaman judul, lembar pengesahan, dan abstrak disertasi/thesis dalam satu dokumen.",
+        inputType: "FILE",
+        order: 1,
+        isRequired: true,
+        helperText:
+          "Lampirkan halaman judul, lembar pengesahan, dan abstrak disertasi/thesis dalam satu dokumen.",
+      },
+      {
+        code: "MATA_KULIAH_DIAMPU",
+        name: "Mata Kuliah yang Diampu",
+        description:
+          "Metadata mata kuliah yang paling merepresentasikan kepakaran dosen.",
+        inputType: "METADATA_ONLY",
+        order: 2,
+        isRequired: true,
+        helperText:
+          "Data ini dapat digunakan sebagai pendukung pemetaan kepakaran dosen.",
+      },
+      {
+        code: "RANTING_ILMU_KEPAKARAN",
+        name: "Ranting Ilmu atau Kepakaran",
+        description:
+          "Ranting ilmu atau kepakaran sesuai keputusan berita acara senat.",
+        inputType: "METADATA_ONLY",
+        order: 3,
+        isRequired: true,
+        helperText:
+          "Tuliskan ranting ilmu secara lengkap dan sesuai dengan dokumen pendukung.",
+      },
+    ],
+  },
+  {
+    code: "ANGKA_KREDIT",
+    name: "Angka Kredit",
+    description:
+      "Dokumen SKP tahunan, angka kredit penyetaraan, angka kredit prestasi, dan AK kumulatif.",
+    order: 2,
+    requirements: [
+      {
+        code: "SKP_TAHUNAN",
+        name: "Dokumentasi SKP Tahunan",
+        description:
+          "Predikat SKP dan bukti dokumen SKP tahunan dari tahun 2023 sampai tahun berjalan.",
+        inputType: "FILE",
+        order: 1,
+        isRequired: true,
+        isYearly: true,
+        yearStart: 2023,
+        yearEnd: null,
+        helperText:
+          "Dosen memilih tahun SKP, mengisi predikat, lalu mengunggah file SKP tahun tersebut.",
+      },
+      {
+        code: "AK_PENYETARAAN_SKP",
+        name: "AK Penyetaraan, Pendidikan, dan SKP",
+        description:
+          "Dokumen pendukung angka kredit selain prestasi, termasuk penyetaraan dan konversi SKP.",
+        inputType: "FILE",
+        order: 2,
+        isRequired: true,
+        helperText:
+          "Unggah dokumen pendukung AK penyetaraan atau konversi SKP jika tersedia.",
+      },
+      {
+        code: "AK_PRESTASI_PENELITIAN",
+        name: "AK Prestasi Penelitian dan Karya",
+        description:
+          "Dokumen angka kredit prestasi dari publikasi, penelitian, karya ilmiah, atau karya inovatif.",
+        inputType: "FILE",
+        order: 3,
+        isRequired: true,
+        helperText:
+          "Unggah bukti karya ilmiah, publikasi, atau dokumen pendukung AK prestasi.",
+      },
+      {
+        code: "AK_KUMULATIF",
+        name: "Dokumen AK Kumulatif",
+        description:
+          "Dokumen perhitungan angka kredit kumulatif yang digunakan untuk proses validasi.",
+        inputType: "FILE",
+        order: 4,
+        isRequired: true,
+        helperText:
+          "Unggah dokumen AK kumulatif dalam format PDF, JPG, JPEG, atau PNG.",
+      },
+    ],
+  },
+  {
+    code: "IKD",
+    name: "IKD",
+    description:
+      "Indikator Kinerja Dosen yang memuat bukti kinerja bidang pendidikan, penelitian, dan pengabdian kepada masyarakat.",
+    order: 3,
+    requirements: [
+      {
+        code: "IKD_PENDIDIKAN",
+        name: "IKD Pendidikan",
+        description:
+          "Dokumen bukti Indikator Kinerja Dosen pada bidang pendidikan, pembelajaran, pengajaran, dan pengembangan akademik.",
+        inputType: "FILE",
+        order: 1,
+        isRequired: true,
+        helperText:
+          "Unggah dokumen IKD bidang pendidikan dalam format PDF, JPG, JPEG, atau PNG.",
+      },
+      {
+        code: "IKD_PENELITIAN_PENGMAS",
+        name: "IKD Penelitian dan Pengmas",
+        description:
+          "Dokumen bukti Indikator Kinerja Dosen pada bidang penelitian dan pengabdian kepada masyarakat.",
+        inputType: "FILE",
+        order: 2,
+        isRequired: true,
+        helperText:
+          "Unggah dokumen IKD bidang penelitian dan pengabdian kepada masyarakat dalam format PDF, JPG, JPEG, atau PNG.",
+      },
+    ],
+  },
+  {
+    code: "SYARAT_KHUSUS",
+    name: "Syarat Khusus",
+    description:
+      "Dokumen syarat khusus seperti tautan profil akademik, pakta integritas, dan lampiran karya ilmiah.",
+    order: 4,
+    requirements: [
+      {
+        code: "SINTA_PROFILE",
+        name: "Tautan Profil Akun SINTA",
+        description: "Tautan profil SINTA dosen.",
+        inputType: "URL",
+        order: 1,
+        isRequired: true,
+        requiresExternalUrl: true,
+        helperText: "Masukkan URL profil SINTA yang aktif dan dapat diakses.",
+      },
+      {
+        code: "GOOGLE_SCHOLAR_PROFILE",
+        name: "Tautan Profil Google Scholar",
+        description: "Tautan profil Google Scholar dosen.",
+        inputType: "URL",
+        order: 2,
+        isRequired: true,
+        requiresExternalUrl: true,
+        helperText:
+          "Masukkan URL profil Google Scholar yang aktif dan dapat diakses.",
+      },
+      {
+        code: "SCOPUS_PROFILE",
+        name: "Tautan Profil Scopus",
+        description: "Tautan profil Scopus dosen jika tersedia.",
+        inputType: "URL",
+        order: 3,
+        isRequired: false,
+        requiresExternalUrl: true,
+        helperText:
+          "Masukkan URL profil Scopus jika tersedia. Jika belum ada, dapat dikosongkan.",
+      },
+      {
+        code: "PAKTA_INTEGRITAS_KARYA_ILMIAH",
+        name: "Surat Pernyataan Pakta Integritas Karya Ilmiah",
+        description:
+          "Surat pernyataan pakta integritas karya ilmiah dosen sesuai contoh dokumen.",
+        inputType: "FILE",
+        order: 4,
+        isRequired: true,
+        helperText:
+          "Unggah surat pernyataan pakta integritas karya ilmiah yang telah ditandatangani.",
+      },
+      {
+        code: "LAMPIRAN_KARYA_ILMIAH",
+        name: "Lampiran Karya Ilmiah",
+        description:
+          "Lampiran karya ilmiah yang menjadi bukti pendukung pengajuan.",
+        inputType: "FILE",
+        order: 5,
+        isRequired: true,
+        helperText:
+          "Unggah lampiran karya ilmiah dalam format PDF, JPG, JPEG, atau PNG.",
+      },
+    ],
+  },
+  {
+    code: "DOKUMEN_REKOMENDASI",
+    name: "Dokumen Rekomendasi",
+    description:
+      "Dokumen rekomendasi kelembagaan yang dibutuhkan dalam proses pengajuan kenaikan jabatan.",
+    order: 5,
+    requirements: [
+      {
+        code: "PENGANTAR_PT_LLDIKTI_KL",
+        name: "Pengantar PT/LLDIKTI/KL",
+        description:
+          "Dokumen pengantar yang ditandatangani oleh Rektor/Direktur/Ketua Sekolah Tinggi/Kepala LLDIKTI/Pimpinan Mitra KL.",
+        inputType: "FILE",
+        order: 1,
+        isRequired: true,
+        requiresLetterNumber: true,
+        requiresLetterDate: true,
+        helperText:
+          "Unggah dokumen pengantar dan isi nomor surat serta tanggal surat sesuai dokumen.",
+      },
+      {
+        code: "BERITA_ACARA_SENAT",
+        name: "Berita Acara Senat",
+        description:
+          "Berita acara senat yang mencantumkan jumlah keseluruhan anggota senat dan lampiran daftar hadir.",
+        inputType: "FILE",
+        order: 2,
+        isRequired: true,
+        requiresLetterNumber: false,
+        requiresLetterDate: false,
+        helperText:
+          "Unggah berita acara senat beserta lampiran daftar hadir jika tersedia.",
+      },
+      {
+        code: "BERITA_ACARA_KOMITE_INTEGRITAS",
+        name: "Berita Acara Komite Integritas Akademik",
+        description:
+          "Dokumen berita acara komite integritas akademik yang ditandatangani minimal oleh ketua tim komite.",
+        inputType: "FILE",
+        order: 3,
+        isRequired: true,
+        requiresLetterNumber: true,
+        requiresLetterDate: true,
+        helperText:
+          "Unggah berita acara komite integritas akademik dan isi metadata surat.",
+      },
+      {
+        code: "SURAT_PERNYATAAN_PEMIMPIN",
+        name: "Surat Pernyataan Pemimpin PTN/PTS/PTKL",
+        description:
+          "Surat pernyataan pemimpin perguruan tinggi atau lembaga terkait sebagai dokumen rekomendasi.",
+        inputType: "FILE",
+        order: 4,
+        isRequired: true,
+        requiresLetterNumber: true,
+        requiresLetterDate: true,
+        helperText:
+          "Unggah surat pernyataan pemimpin dan isi nomor serta tanggal surat.",
+      },
+    ],
+  },
+];
+
+async function seedAdminIfConfigured() {
+  const email = process.env.SEED_ADMIN_EMAIL;
+  const password = process.env.SEED_ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    console.log(
+      "Admin seed dilewati. SEED_ADMIN_EMAIL atau SEED_ADMIN_PASSWORD belum diatur.",
+    );
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
 
   await prisma.user.upsert({
-    where: { email: adminEmail },
+    where: {
+      email: email.toLowerCase(),
+    },
     update: {
+      passwordHash,
       role: "ADMIN",
       status: "ACTIVE",
     },
     create: {
-      email: adminEmail,
+      email: email.toLowerCase(),
       passwordHash,
       role: "ADMIN",
       status: "ACTIVE",
     },
   });
 
-  /**
-   * Hapus requirement lama yang tidak lagi dipakai.
-   * Ini aman untuk tahap development.
-   */
-  await prisma.documentRequirement.deleteMany({
-    where: {
-      code: {
-        in: [
-          "SKP_2023",
-          "SKP_2024",
-          "SKP_2025",
-          "ARTIKEL_SYARAT_KHUSUS",
-          "BUKTI_KORESPONDENSI",
-          "SIMILARITY_CHECK",
-          "PAKTA_INTEGRITAS",
-          "SURAT_PENGANTAR",
-        ],
-      },
-    },
-  });
+  console.log(`Admin aktif: ${email.toLowerCase()}`);
+}
 
-  const categories = [
-    {
-      code: "PROFIL_KEPAKARAN",
-      name: "Profil dan Kepakaran",
-      description: "Data profil, pendidikan tertinggi, dan kepakaran dosen.",
-      order: 1,
-      requirements: [
-        {
-          code: "THESIS_DISERTASI",
-          name: "Disertasi/Thesis Pendidikan Tertinggi",
-          description:
-            "Halaman judul, lembar pengesahan, dan abstrak dalam satu dokumen.",
-          inputType: "FILE",
-          order: 1,
-          isRequired: true,
-          helperText:
-            "Lampirkan halaman judul, lembar pengesahan, dan abstrak disertasi/thesis.",
-        },
-      ],
-    },
-    {
-      code: "ANGKA_KREDIT",
-      name: "Angka Kredit",
-      description: "SKP tahunan, angka kredit prestasi, dan AK kumulatif.",
-      order: 2,
-      requirements: [
-        {
-          code: "SKP_TAHUNAN",
-          name: "Dokumentasi SKP Tahunan",
-          description:
-            "Dosen memilih tahun SKP dari 2023 sampai tahun berjalan, lalu mengunggah dokumen SKP.",
-          inputType: "FILE",
-          order: 1,
-          isRequired: true,
-          isYearly: true,
-          yearStart: 2023,
-          helperText:
-            "Pilih tahun SKP, isi predikat SKP, lalu unggah dokumen SKP sesuai tahun tersebut.",
-        },
-        {
-          code: "AK_PRESTASI",
-          name: "Bukti AK Prestasi",
-          description:
-            "Bukti publikasi, HKI, prosiding, buku, karya ilmiah, atau kegiatan penelitian/karya lain yang diklaim.",
-          inputType: "FILE",
-          order: 2,
-          isRequired: false,
-          helperText:
-            "Unggah bukti pendukung AK Prestasi sesuai jenis karya yang diklaim.",
-        },
-        {
-          code: "AK_KUMULATIF",
-          name: "Dokumen AK Kumulatif",
-          description:
-            "Dokumen perhitungan Angka Kredit Kumulatif untuk divalidasi oleh tim penilai.",
-          inputType: "FILE",
-          order: 3,
-          isRequired: true,
-          helperText:
-            "Unggah dokumen perhitungan AK Kumulatif dalam format PDF.",
-        },
-      ],
-    },
-    {
-      code: "SYARAT_KHUSUS",
-      name: "Syarat Khusus",
-      description:
-        "Profil akademik dan dokumen karya ilmiah yang menjadi syarat khusus pengajuan.",
-      order: 3,
-      requirements: [
-        {
-          code: "SINTA_PROFILE_URL",
-          name: "Tautan Profil Akun SINTA",
-          description: "Link profil SINTA dosen.",
-          inputType: "URL",
-          order: 1,
-          isRequired: true,
-          requiresExternalUrl: true,
-          helperText:
-            "Masukkan tautan profil SINTA yang aktif dan dapat diakses.",
-        },
-        {
-          code: "GOOGLE_SCHOLAR_PROFILE_URL",
-          name: "Tautan Profil Google Scholar",
-          description: "Link profil Google Scholar dosen.",
-          inputType: "URL",
-          order: 2,
-          isRequired: true,
-          requiresExternalUrl: true,
-          helperText:
-            "Masukkan tautan profil Google Scholar yang aktif dan dapat diakses.",
-        },
-        {
-          code: "SCOPUS_PROFILE_URL",
-          name: "Tautan Profil Scopus",
-          description: "Link profil Scopus dosen.",
-          inputType: "URL",
-          order: 3,
-          isRequired: false,
-          requiresExternalUrl: true,
-          helperText:
-            "Masukkan tautan profil Scopus apabila tersedia dan relevan.",
-        },
-        {
-          code: "PAKTA_INTEGRITAS_KARYA_ILMIAH",
-          name: "Surat Pernyataan Pakta Integritas Karya Ilmiah Dosen",
-          description:
-            "Surat pernyataan pakta integritas karya ilmiah dosen sebagai bukti keabsahan karya.",
-          inputType: "FILE",
-          order: 4,
-          isRequired: true,
-          sampleUrl: "#",
-          helperText:
-            "Unggah dokumen pakta integritas karya ilmiah dosen dalam format PDF, JPG, JPEG, atau PNG.",
-        },
-        {
-          code: "LAMPIRAN_KARYA_ILMIAH",
-          name: "Lampiran Karya Ilmiah",
-          description:
-            "Lampiran karya ilmiah yang mendukung syarat khusus pengajuan.",
-          inputType: "FILE",
-          order: 5,
-          isRequired: true,
-          helperText:
-            "Unggah lampiran karya ilmiah atau gunakan fitur tarik portofolio pada tahap berikutnya.",
-        },
-      ],
-    },
-    {
-      code: "DOKUMEN_REKOMENDASI",
-      name: "Dokumen Rekomendasi",
-      description:
-        "Dokumen rekomendasi, berita acara, dan surat pernyataan yang mendukung pengajuan.",
-      order: 4,
-      requirements: [
-        {
-          code: "PENGANTAR_PT_LLDIKTI_KL",
-          name: "Pengantar PT/LLDIKTI/KL",
-          description:
-            "Dokumen ditandatangani oleh Rektor/Direktur/Ketua Sekolah Tinggi/Kepala LLDIKTI/Pimpinan Mitra KL yang membidangi kepegawaian dosen.",
-          inputType: "FILE",
-          order: 1,
-          isRequired: true,
-          requiresLetterNumber: true,
-          requiresLetterDate: true,
-          helperText:
-            "Unggah dokumen pengantar, lalu isi nomor surat dan tanggal surat sesuai dokumen.",
-        },
-        {
-          code: "BERITA_ACARA_SENAT",
-          name: "Berita Acara Senat",
-          description:
-            "Pastikan mencantumkan jumlah keseluruhan anggota senat dan lampiran daftar hadir.",
-          inputType: "FILE",
-          order: 2,
-          isRequired: true,
-          sampleUrl: "#",
-          helperText:
-            "Unggah berita acara senat dalam format PDF, JPG, JPEG, atau PNG.",
-        },
-        {
-          code: "BERITA_ACARA_KOMITE_INTEGRITAS",
-          name: "Berita Acara Komite Integritas Akademik",
-          description:
-            "Dokumen ditandatangani minimal oleh Ketua Tim Komite Integritas Akademik.",
-          inputType: "FILE",
-          order: 3,
-          isRequired: true,
-          requiresLetterNumber: true,
-          requiresLetterDate: true,
-          sampleUrl: "#",
-          helperText:
-            "Unggah berita acara komite integritas akademik, lalu isi nomor dan tanggal surat.",
-        },
-        {
-          code: "SURAT_PERNYATAAN_PEMIMPIN",
-          name: "Surat Pernyataan Pemimpin PTN/PTS/PTKL",
-          description:
-            "Surat pernyataan pimpinan perguruan tinggi terkait kelengkapan dan kebenaran dokumen pengajuan.",
-          inputType: "FILE",
-          order: 4,
-          isRequired: true,
-          requiresLetterNumber: true,
-          requiresLetterDate: true,
-          helperText:
-            "Unggah surat pernyataan pimpinan, lalu isi nomor surat dan tanggal surat.",
-        },
-      ],
-    },
-  ];
-
-  for (const category of categories) {
+async function seedDocumentCategories() {
+  for (const category of documentCategories) {
     const savedCategory = await prisma.documentCategory.upsert({
       where: {
         code: category.code,
@@ -261,69 +346,61 @@ async function main() {
         update: {
           name: requirement.name,
           description: requirement.description,
-          inputType: requirement.inputType as any,
+          audience: "DOSEN",
+          inputType: requirement.inputType || "FILE",
+          isRequired: requirement.isRequired ?? true,
+          maxSizeMb: 5,
+          allowedMimeTypes,
           order: requirement.order,
-          isRequired: requirement.isRequired,
-          isYearly: "isYearly" in requirement ? requirement.isYearly : false,
-          yearStart: "yearStart" in requirement ? requirement.yearStart : null,
-          yearEnd: null,
-          requiresLetterNumber:
-            "requiresLetterNumber" in requirement
-              ? requirement.requiresLetterNumber
-              : false,
-          requiresLetterDate:
-            "requiresLetterDate" in requirement
-              ? requirement.requiresLetterDate
-              : false,
-          requiresExternalUrl:
-            "requiresExternalUrl" in requirement
-              ? requirement.requiresExternalUrl
-              : false,
-          helperText:
-            "helperText" in requirement ? requirement.helperText : null,
-          sampleUrl: "sampleUrl" in requirement ? requirement.sampleUrl : null,
+          isYearly: requirement.isYearly ?? false,
+          yearStart: requirement.yearStart ?? null,
+          yearEnd: requirement.yearEnd ?? null,
+          requiresLetterNumber: requirement.requiresLetterNumber ?? false,
+          requiresLetterDate: requirement.requiresLetterDate ?? false,
+          requiresExternalUrl: requirement.requiresExternalUrl ?? false,
+          helperText: requirement.helperText ?? null,
+          sampleUrl: requirement.sampleUrl ?? null,
           categoryId: savedCategory.id,
         },
         create: {
           code: requirement.code,
           name: requirement.name,
           description: requirement.description,
-          inputType: requirement.inputType as any,
+          audience: "DOSEN",
+          inputType: requirement.inputType || "FILE",
+          isRequired: requirement.isRequired ?? true,
+          maxSizeMb: 5,
+          allowedMimeTypes,
           order: requirement.order,
-          isRequired: requirement.isRequired,
-          isYearly: "isYearly" in requirement ? requirement.isYearly : false,
-          yearStart: "yearStart" in requirement ? requirement.yearStart : null,
-          yearEnd: null,
-          requiresLetterNumber:
-            "requiresLetterNumber" in requirement
-              ? requirement.requiresLetterNumber
-              : false,
-          requiresLetterDate:
-            "requiresLetterDate" in requirement
-              ? requirement.requiresLetterDate
-              : false,
-          requiresExternalUrl:
-            "requiresExternalUrl" in requirement
-              ? requirement.requiresExternalUrl
-              : false,
-          helperText:
-            "helperText" in requirement ? requirement.helperText : null,
-          sampleUrl: "sampleUrl" in requirement ? requirement.sampleUrl : null,
+          isYearly: requirement.isYearly ?? false,
+          yearStart: requirement.yearStart ?? null,
+          yearEnd: requirement.yearEnd ?? null,
+          requiresLetterNumber: requirement.requiresLetterNumber ?? false,
+          requiresLetterDate: requirement.requiresLetterDate ?? false,
+          requiresExternalUrl: requirement.requiresExternalUrl ?? false,
+          helperText: requirement.helperText ?? null,
+          sampleUrl: requirement.sampleUrl ?? null,
           categoryId: savedCategory.id,
         },
       });
     }
-  }
 
-  console.log("Seed selesai.");
-  console.log("Admin:", adminEmail, "/", adminPassword);
+    console.log(`Kategori seeded: ${category.name}`);
+  }
+}
+
+async function main() {
+  await seedAdminIfConfigured();
+  await seedDocumentCategories();
 }
 
 main()
-  .catch((error) => {
-    console.error("SEED_ERROR:", error);
-    process.exit(1);
-  })
-  .finally(async () => {
+  .then(async () => {
+    console.log("Seed selesai.");
     await prisma.$disconnect();
+  })
+  .catch(async (error) => {
+    console.error("Seed gagal:", error);
+    await prisma.$disconnect();
+    process.exit(1);
   });
