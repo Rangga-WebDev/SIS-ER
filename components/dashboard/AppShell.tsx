@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/auth/LogoutButton";
 import NotificationCenter from "@/components/dashboard/NotificationCenter";
+import Image from "next/image";
 
 import {
   BarChart3,
@@ -89,13 +90,18 @@ export default function AppShell({
             <div className="border-b border-slate-100 p-5">
               <Link href="/" className="group flex items-center gap-4">
                 <div className="relative flex h-13 w-13 items-center justify-center overflow-hidden rounded-2xl bg-slate-950 text-white shadow-lg shadow-slate-900/20 transition group-hover:scale-105">
-                  <div className="absolute inset-0 bg-gradient-to-br from-sky-400/40 via-transparent to-blue-800/40" />
-                  <span className="relative text-xl font-black">S</span>
+                  <Image
+                    src="/logo-unismuh.svg"
+                    alt="Logo Kampus"
+                    width={48}
+                    height={48}
+                    className="rounded-full"
+                  />
                 </div>
 
                 <div>
                   <p className="text-xl font-black tracking-tight text-slate-950">
-                    SISTER PAK
+                    JAFUNG SMART
                   </p>
                   <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
                     {role} Workspace

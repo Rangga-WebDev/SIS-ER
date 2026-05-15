@@ -2,6 +2,8 @@
 import { ArrowRight, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { footerLinks } from "@/lib/landing-data";
 import type { ReactNode } from "react";
+import Image from "next/image";
+
 export default function Footer({
   onNavClick,
 }: {
@@ -51,15 +53,19 @@ export default function Footer({
               onClick={() => onNavClick("#beranda")}
               className="group flex items-center gap-4 text-left"
             >
-              <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-800 shadow-lg shadow-sky-900/30 transition group-hover:rotate-6 group-hover:scale-110">
-                <div className="relative h-7 w-7 rounded-full bg-white/90" />
-              </div>
+              <Image
+                src="/logo-unismuh.svg"
+                alt="Logo Kampus"
+                width={68}
+                height={68}
+                className="rounded-full"
+              />
               <div>
                 <h2 className="text-3xl font-black tracking-tight text-white">
-                  SISTER
+                  JAFUNG SMART
                 </h2>
                 <p className="text-xs font-bold tracking-[0.22em] text-slate-400">
-                  PAK PLATFORM
+                  UNIVERSITAS MUHAMMADIYAH MAKASSAR
                 </p>
               </div>
             </button>

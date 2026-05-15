@@ -2,6 +2,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   AlertCircle,
   ArrowLeft,
@@ -226,13 +227,17 @@ export default function RegisterForm() {
                 Kembali
               </button>
               <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-blue-800 shadow-lg">
-                  <div className="h-7 w-7 rounded-full bg-white/90" />
-                </div>
+                <Image
+                  src="/logo-unismuh.svg"
+                  alt="Logo Kampus"
+                  width={68}
+                  height={68}
+                  className="rounded-full"
+                />
                 <div>
-                  <h1 className="text-3xl font-black">SISTER</h1>
+                  <h1 className="text-3xl font-black">JAFUNG SMART</h1>
                   <p className="text-xs font-bold tracking-[0.22em] text-slate-400">
-                    PAK PLATFORM
+                    UNIVERSITAS MUHAMMADIYAH MAKASSAR
                   </p>
                 </div>
               </div>

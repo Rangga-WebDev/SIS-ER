@@ -1,6 +1,8 @@
 /** @format */
 import { ArrowRight, Menu, X } from "lucide-react";
 import { navItems } from "@/lib/landing-data";
+import Image from "next/image";
+
 export default function Navbar({
   activeSection,
   mobileOpen,
@@ -20,15 +22,19 @@ export default function Navbar({
           onClick={() => onNavClick("#beranda")}
           className="flex items-center gap-4 text-left"
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-800 shadow-md">
-            <div className="h-6 w-6 rounded-full bg-white/90" />
-          </div>
+          <Image
+            src="/logo-unismuh.svg"
+            alt="Logo Kampus"
+            width={48}
+            height={48}
+            className="rounded-full"
+          />
           <div>
             <h1 className="text-2xl font-black tracking-tight text-slate-900">
-              SISTER
+              JAFUNG SMART
             </h1>
             <p className="hidden text-[10px] font-bold tracking-[0.22em] text-slate-500 sm:block">
-              PAK PLATFORM
+              UNIVERSITAS MUHAMMADIYAH MAKASSAR
             </p>
           </div>
         </button>
