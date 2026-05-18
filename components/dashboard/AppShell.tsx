@@ -223,7 +223,9 @@ export default function AppShell({
                 <MiniAction icon={<Bell size={16} />} href="#" label="Notif" />
                 <MiniAction
                   icon={<Settings size={16} />}
-                  href="#"
+                  href={
+                    role === "DOSEN" ? "/dosen/settings" : "/admin/dashboard"
+                  }
                   label="Setting"
                 />
               </div>

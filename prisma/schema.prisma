@@ -89,6 +89,11 @@ model LecturerProfile {
   documentStatus     String @default("BELUM_UPLOAD")
   verificationStatus String @default("MENUNGGU_DATA")
 
+  photoFileName    String?
+  photoFileSize    Int?
+  photoMimeType    String?
+  photoStoragePath String?
+
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 

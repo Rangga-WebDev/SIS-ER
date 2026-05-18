@@ -221,6 +221,39 @@ const documentCategories: CategorySeed[] = [
         helperText:
           "Unggah lampiran karya ilmiah dalam format PDF, JPG, JPEG, atau PNG.",
       },
+      {
+        code: "DOKUMEN_ARTIKEL",
+        name: "Dokumen Artikel",
+        description:
+          "Dokumen artikel ilmiah yang menjadi bukti pendukung karya ilmiah dosen.",
+        inputType: "FILE",
+        order: 6,
+        isRequired: true,
+        helperText:
+          "Unggah dokumen artikel dalam format PDF, JPG, JPEG, atau PNG dengan ukuran maksimal 5 MB.",
+      },
+      {
+        code: "DOKUMEN_KORESPONDENSI",
+        name: "Dokumen Korespondensi",
+        description:
+          "Dokumen korespondensi artikel, seperti bukti submit, review, accepted, atau komunikasi dengan pengelola jurnal.",
+        inputType: "FILE",
+        order: 7,
+        isRequired: true,
+        helperText:
+          "Unggah dokumen korespondensi artikel dalam format PDF, JPG, JPEG, atau PNG dengan ukuran maksimal 5 MB.",
+      },
+      {
+        code: "DOKUMEN_UJI_KEMIRIPAN",
+        name: "Dokumen Uji Kemiripan",
+        description:
+          "Dokumen hasil uji kemiripan atau similarity check artikel ilmiah.",
+        inputType: "FILE",
+        order: 8,
+        isRequired: true,
+        helperText:
+          "Unggah dokumen uji kemiripan dalam format PDF, JPG, JPEG, atau PNG dengan ukuran maksimal 5 MB.",
+      },
     ],
   },
   {

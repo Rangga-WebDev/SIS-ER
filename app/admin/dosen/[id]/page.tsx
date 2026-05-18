@@ -8,6 +8,7 @@ import AppShell from "@/components/dashboard/AppShell";
 import VerifySubmissionForm from "@/components/admin/VerifySubmissionForm";
 import DocumentVersionHistory from "@/components/documents/DocumentVersionHistory";
 import FilePreviewModal from "@/components/documents/FilePreviewModal";
+import LecturerAvatar from "@/components/ui/LecturerAvatar";
 
 import {
   ArrowLeft,
@@ -268,9 +269,11 @@ export default async function AdminDosenDetailPage({
             <div className="p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-sky-100 text-sky-700">
-                    <UserRound size={32} />
-                  </div>
+                  <LecturerAvatar
+                    lecturerId={lecturer.id}
+                    name={lecturer.fullName}
+                    size="lg"
+                  />
 
                   <div>
                     <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-700">
@@ -323,9 +326,11 @@ export default async function AdminDosenDetailPage({
                   </p>
                 </div>
 
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10">
-                  <ShieldCheck size={32} />
-                </div>
+                <LecturerAvatar
+                  lecturerId={lecturer.id}
+                  name={lecturer.fullName}
+                  size="lg"
+                />
               </div>
 
               <div className="mt-6 h-4 overflow-hidden rounded-full bg-white/10">
