@@ -9,6 +9,12 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
+const multiTextMetadataCodes = ["MATA_KULIAH_DIAMPU", "RANTING_ILMU_KEPAKARAN"];
+
+function isMultiTextMetadataRequirement(code: string) {
+  return multiTextMetadataCodes.includes(code);
+}
+
 function safeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 140);
 }
@@ -26,6 +32,14 @@ function toNullableInt(value: FormDataEntryValue | null) {
   const parsed = Number.parseInt(text, 10);
 
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getMetadataItems(formData: FormData) {
+  return [
+    toNullableString(formData.get("metadataItem1")),
+    toNullableString(formData.get("metadataItem2")),
+    toNullableString(formData.get("metadataItem3")),
+  ].filter(Boolean) as string[];
 }
 
 export async function POST(request: Request) {
@@ -92,14 +106,33 @@ export async function POST(request: Request) {
     );
   }
 
+  const isMultiTextMetadata = isMultiTextMetadataRequirement(requirement.code);
+  const metadataItems = isMultiTextMetadata ? getMetadataItems(formData) : [];
+
   const needsFile =
-    requirement.inputType === "FILE" ||
-    requirement.inputType === "FILE_AND_URL";
+    !isMultiTextMetadata &&
+    (requirement.inputType === "FILE" ||
+      requirement.inputType === "FILE_AND_URL");
 
   const needsUrl =
-    requirement.inputType === "URL" ||
-    requirement.inputType === "FILE_AND_URL" ||
-    requirement.requiresExternalUrl;
+    !isMultiTextMetadata &&
+    (requirement.inputType === "URL" ||
+      requirement.inputType === "FILE_AND_URL" ||
+      requirement.requiresExternalUrl);
+
+  if (isMultiTextMetadata && metadataItems.length < 1) {
+    return NextResponse.json(
+      { message: "Minimal 1 data wajib diisi." },
+      { status: 400 },
+    );
+  }
+
+  if (isMultiTextMetadata && metadataItems.length > 3) {
+    return NextResponse.json(
+      { message: "Maksimal hanya 3 data yang dapat disimpan." },
+      { status: 400 },
+    );
+  }
 
   if (requirement.isYearly && !academicYear) {
     return NextResponse.json(
@@ -228,6 +261,8 @@ export async function POST(request: Request) {
     hasFile: Boolean(storagePath),
     hasUrl: Boolean(externalUrl),
     versionNumber: nextVersionNumber,
+    items: metadataItems,
+    metadataItems,
   };
 
   const submission = await prisma.$transaction(async (tx) => {
@@ -317,7 +352,7 @@ export async function POST(request: Request) {
   await prisma.activityLog.create({
     data: {
       actorId: user.id,
-      action: "DOCUMENT_SAVE",
+      action: isMultiTextMetadata ? "METADATA_SAVE" : "DOCUMENT_SAVE",
       entity: "DocumentSubmission",
       entityId: submission.id,
       metadata: {
@@ -329,13 +364,20 @@ export async function POST(request: Request) {
         hasFile: Boolean(storagePath),
         hasUrl: Boolean(externalUrl),
         versionNumber: nextVersionNumber,
+        items: metadataItems,
       },
     },
   });
 
   await notifyAdmins({
     title:
-      nextVersionNumber > 1 ? "Dokumen Revisi Dikirim" : "Dokumen Baru Masuk",
+      nextVersionNumber > 1
+        ? isMultiTextMetadata
+          ? "Metadata Revisi Dikirim"
+          : "Dokumen Revisi Dikirim"
+        : isMultiTextMetadata
+          ? "Metadata Baru Masuk"
+          : "Dokumen Baru Masuk",
     message: `${lecturer.fullName} mengirim ${requirement.name} versi ${nextVersionNumber}.`,
     type: "DOCUMENT_UPLOADED",
     href: `/admin/dosen/${lecturer.id}`,
@@ -350,14 +392,19 @@ export async function POST(request: Request) {
       hasFile: Boolean(storagePath),
       hasUrl: Boolean(externalUrl),
       versionNumber: nextVersionNumber,
+      items: metadataItems,
     },
   });
 
   return NextResponse.json({
     message:
       nextVersionNumber > 1
-        ? `Dokumen berhasil diperbarui sebagai versi ${nextVersionNumber}.`
-        : "Dokumen berhasil disimpan.",
+        ? isMultiTextMetadata
+          ? `Data berhasil diperbarui sebagai versi ${nextVersionNumber}.`
+          : `Dokumen berhasil diperbarui sebagai versi ${nextVersionNumber}.`
+        : isMultiTextMetadata
+          ? "Data berhasil disimpan."
+          : "Dokumen berhasil disimpan.",
     submission,
   });
 }

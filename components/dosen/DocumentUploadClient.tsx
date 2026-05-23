@@ -11,6 +11,7 @@ import {
   FileText,
   Link2,
   Loader2,
+  Save,
   UploadCloud,
 } from "lucide-react";
 
@@ -35,6 +36,12 @@ type Props = {
 
 const skpPredicates = ["Sangat Baik", "Baik", "Cukup", "Kurang"];
 
+const multiTextMetadataCodes = ["MATA_KULIAH_DIAMPU", "RANTING_ILMU_KEPAKARAN"];
+
+function isMultiTextMetadataRequirement(code: string) {
+  return multiTextMetadataCodes.includes(code);
+}
+
 function mimeToAccept(mimes: string[]) {
   const map: Record<string, string> = {
     "application/pdf": ".pdf",
@@ -43,6 +50,32 @@ function mimeToAccept(mimes: string[]) {
   };
 
   return mimes.map((mime) => map[mime] || mime).join(",");
+}
+
+function getMetadataLabels(code: string) {
+  if (code === "MATA_KULIAH_DIAMPU") {
+    return {
+      title: "Mata Kuliah yang Diampu",
+      label1: "Mata Kuliah 1",
+      label2: "Mata Kuliah 2",
+      label3: "Mata Kuliah 3",
+      placeholder1: "Contoh: Sistem Terdistribusi",
+      placeholder2: "Contoh: Pemrograman Web",
+      placeholder3: "Contoh: Basis Data",
+      helper: "Isi minimal 1 dan maksimal 3 mata kuliah yang diampu.",
+    };
+  }
+
+  return {
+    title: "Ranting Ilmu atau Kepakaran",
+    label1: "Kepakaran 1",
+    label2: "Kepakaran 2",
+    label3: "Kepakaran 3",
+    placeholder1: "Contoh: Software Engineering",
+    placeholder2: "Contoh: Artificial Intelligence",
+    placeholder3: "Contoh: Data Science",
+    helper: "Isi minimal 1 dan maksimal 3 bidang kepakaran atau ranting ilmu.",
+  };
 }
 
 export default function DocumentUploadClient({ requirement }: Props) {
@@ -62,14 +95,18 @@ export default function DocumentUploadClient({ requirement }: Props) {
     ).reverse();
   }, [requirement.isYearly, yearStart, yearEnd]);
 
+  const isMultiTextMetadata = isMultiTextMetadataRequirement(requirement.code);
+
   const needsFile =
-    requirement.inputType === "FILE" ||
-    requirement.inputType === "FILE_AND_URL";
+    !isMultiTextMetadata &&
+    (requirement.inputType === "FILE" ||
+      requirement.inputType === "FILE_AND_URL");
 
   const needsUrl =
-    requirement.inputType === "URL" ||
-    requirement.inputType === "FILE_AND_URL" ||
-    requirement.requiresExternalUrl;
+    !isMultiTextMetadata &&
+    (requirement.inputType === "URL" ||
+      requirement.inputType === "FILE_AND_URL" ||
+      requirement.requiresExternalUrl);
 
   const [file, setFile] = useState<File | null>(null);
   const [academicYear, setAcademicYear] = useState<number>(
@@ -79,6 +116,10 @@ export default function DocumentUploadClient({ requirement }: Props) {
   const [letterNumber, setLetterNumber] = useState("");
   const [letterDate, setLetterDate] = useState("");
   const [skpPredicate, setSkpPredicate] = useState("Sangat Baik");
+
+  const [metadataItem1, setMetadataItem1] = useState("");
+  const [metadataItem2, setMetadataItem2] = useState("");
+  const [metadataItem3, setMetadataItem3] = useState("");
 
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState<{
@@ -91,10 +132,32 @@ export default function DocumentUploadClient({ requirement }: Props) {
     setExternalUrl("");
     setLetterNumber("");
     setLetterDate("");
+
+    if (isMultiTextMetadata) {
+      setMetadataItem1("");
+      setMetadataItem2("");
+      setMetadataItem3("");
+    }
   };
 
   const upload = async () => {
     setMessage(null);
+
+    if (isMultiTextMetadata) {
+      const metadataItems = [
+        metadataItem1.trim(),
+        metadataItem2.trim(),
+        metadataItem3.trim(),
+      ].filter(Boolean);
+
+      if (metadataItems.length < 1) {
+        setMessage({
+          type: "error",
+          text: "Minimal 1 data wajib diisi.",
+        });
+        return;
+      }
+    }
 
     if (needsFile && !file) {
       setMessage({
@@ -141,21 +204,31 @@ export default function DocumentUploadClient({ requirement }: Props) {
     formData.append("requirementId", requirement.id);
 
     if (file) formData.append("file", file);
+
     if (requirement.isYearly) {
       formData.append("academicYear", String(academicYear));
     }
+
     if (externalUrl.trim()) {
       formData.append("externalUrl", externalUrl.trim());
     }
+
     if (letterNumber.trim()) {
       formData.append("letterNumber", letterNumber.trim());
     }
+
     if (letterDate) {
       formData.append("letterDate", letterDate);
     }
 
     if (requirement.code === "SKP_TAHUNAN") {
       formData.append("skpPredicate", skpPredicate);
+    }
+
+    if (isMultiTextMetadata) {
+      formData.append("metadataItem1", metadataItem1.trim());
+      formData.append("metadataItem2", metadataItem2.trim());
+      formData.append("metadataItem3", metadataItem3.trim());
     }
 
     setIsUploading(true);
@@ -171,7 +244,7 @@ export default function DocumentUploadClient({ requirement }: Props) {
       if (!response.ok) {
         setMessage({
           type: "error",
-          text: json.message || "Gagal menyimpan dokumen.",
+          text: json.message || "Gagal menyimpan data.",
         });
         return;
       }
@@ -180,7 +253,7 @@ export default function DocumentUploadClient({ requirement }: Props) {
 
       setMessage({
         type: "success",
-        text: json.message || "Dokumen berhasil disimpan.",
+        text: json.message || "Data berhasil disimpan.",
       });
 
       router.refresh();
@@ -194,23 +267,76 @@ export default function DocumentUploadClient({ requirement }: Props) {
     }
   };
 
+  const metadataLabels = getMetadataLabels(requirement.code);
+
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
-          <UploadCloud size={19} />
+          {isMultiTextMetadata ? <Save size={19} /> : <UploadCloud size={19} />}
         </div>
 
         <div>
-          <p className="text-sm font-black text-slate-900">Form Pengisian</p>
+          <p className="text-sm font-black text-slate-900">
+            {isMultiTextMetadata ? "Form Isian Metadata" : "Form Pengisian"}
+          </p>
+
           <p className="text-xs font-bold text-slate-400">
-            Maksimal {requirement.maxSizeMb} MB
+            {isMultiTextMetadata
+              ? "Isi minimal 1 data"
+              : `Maksimal ${requirement.maxSizeMb} MB`}
           </p>
         </div>
       </div>
 
       <div className="space-y-3">
-        {requirement.isYearly && (
+        {isMultiTextMetadata && (
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <p className="text-sm font-black text-sky-900">
+              {metadataLabels.title}
+            </p>
+
+            <p className="mt-1 text-xs font-semibold leading-5 text-sky-700">
+              {metadataLabels.helper}
+            </p>
+          </div>
+        )}
+
+        {isMultiTextMetadata && (
+          <>
+            <FieldGroup label={`${metadataLabels.label1} / Wajib`}>
+              <input
+                type="text"
+                value={metadataItem1}
+                onChange={(event) => setMetadataItem1(event.target.value)}
+                placeholder={metadataLabels.placeholder1}
+                className="input-industrial"
+              />
+            </FieldGroup>
+
+            <FieldGroup label={`${metadataLabels.label2} / Opsional`}>
+              <input
+                type="text"
+                value={metadataItem2}
+                onChange={(event) => setMetadataItem2(event.target.value)}
+                placeholder={metadataLabels.placeholder2}
+                className="input-industrial"
+              />
+            </FieldGroup>
+
+            <FieldGroup label={`${metadataLabels.label3} / Opsional`}>
+              <input
+                type="text"
+                value={metadataItem3}
+                onChange={(event) => setMetadataItem3(event.target.value)}
+                placeholder={metadataLabels.placeholder3}
+                className="input-industrial"
+              />
+            </FieldGroup>
+          </>
+        )}
+
+        {!isMultiTextMetadata && requirement.isYearly && (
           <FieldGroup label="Tahun SKP" icon={<CalendarDays size={14} />}>
             <select
               value={academicYear}
@@ -226,7 +352,7 @@ export default function DocumentUploadClient({ requirement }: Props) {
           </FieldGroup>
         )}
 
-        {requirement.code === "SKP_TAHUNAN" && (
+        {!isMultiTextMetadata && requirement.code === "SKP_TAHUNAN" && (
           <FieldGroup label="Predikat SKP">
             <select
               value={skpPredicate}
@@ -254,7 +380,7 @@ export default function DocumentUploadClient({ requirement }: Props) {
           </FieldGroup>
         )}
 
-        {requirement.requiresLetterNumber && (
+        {!isMultiTextMetadata && requirement.requiresLetterNumber && (
           <FieldGroup label="Nomor Surat" icon={<FileText size={14} />}>
             <input
               type="text"
@@ -266,7 +392,7 @@ export default function DocumentUploadClient({ requirement }: Props) {
           </FieldGroup>
         )}
 
-        {requirement.requiresLetterDate && (
+        {!isMultiTextMetadata && requirement.requiresLetterDate && (
           <FieldGroup label="Tanggal Surat">
             <input
               type="date"
@@ -327,6 +453,11 @@ export default function DocumentUploadClient({ requirement }: Props) {
             <>
               <Loader2 size={17} className="animate-spin" />
               Menyimpan...
+            </>
+          ) : isMultiTextMetadata ? (
+            <>
+              <Save size={17} />
+              Simpan Data
             </>
           ) : (
             <>

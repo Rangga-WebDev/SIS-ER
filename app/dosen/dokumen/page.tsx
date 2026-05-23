@@ -150,6 +150,31 @@ function formatFileSize(size?: number | null) {
   return `${(size / 1024 / 1024).toFixed(2)} MB`;
 }
 
+const multiTextMetadataCodes = ["MATA_KULIAH_DIAMPU", "RANTING_ILMU_KEPAKARAN"];
+
+function isMultiTextMetadataRequirement(code: string) {
+  return multiTextMetadataCodes.includes(code);
+}
+
+function getMetadataItems(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return [];
+  }
+
+  const data = metadata as {
+    items?: unknown;
+    metadataItems?: unknown;
+  };
+
+  const rawItems = Array.isArray(data.items)
+    ? data.items
+    : Array.isArray(data.metadataItems)
+      ? data.metadataItems
+      : [];
+
+  return rawItems.map((item) => String(item || "").trim()).filter(Boolean);
+}
+
 function buildQuery(params: SearchParams, patch: SearchParams) {
   const search = new URLSearchParams();
 
@@ -636,11 +661,22 @@ export default async function DosenDokumenPage({
                                             : requirement.name}
                                         </p>
 
-                                        <p className="mt-1 text-sm text-slate-500">
-                                          {submission.fileName ||
-                                            submission.externalUrl ||
-                                            "Metadata tersimpan"}
-                                        </p>
+                                        {isMultiTextMetadataRequirement(
+                                          requirement.code,
+                                        ) ? (
+                                          <MetadataItems
+                                            title="Data yang Diisi"
+                                            items={getMetadataItems(
+                                              submission.metadata,
+                                            )}
+                                          />
+                                        ) : (
+                                          <p className="mt-1 text-sm text-slate-500">
+                                            {submission.fileName ||
+                                              submission.externalUrl ||
+                                              "Metadata tersimpan"}
+                                          </p>
+                                        )}
 
                                         <div className="mt-3 flex flex-wrap gap-2">
                                           <MetaChip
@@ -779,6 +815,36 @@ export default async function DosenDokumenPage({
         )}
       </div>
     </AppShell>
+  );
+}
+
+function MetadataItems({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) {
+    return (
+      <p className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
+        Belum ada metadata yang tersimpan.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+      <p className="text-xs font-black uppercase tracking-widest text-sky-700">
+        {title}
+      </p>
+
+      <ol className="mt-3 space-y-2">
+        {items.map((item, index) => (
+          <li
+            key={`${item}-${index}`}
+            className="flex gap-3 rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-700"
+          >
+            <span className="font-black text-sky-700">{index + 1}.</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

@@ -15,7 +15,6 @@ import {
   CalendarDays,
   CheckCircle2,
   CircleDashed,
-  Download,
   ExternalLink,
   FileText,
   GraduationCap,
@@ -31,6 +30,31 @@ import {
 } from "lucide-react";
 import type { DocumentStatus } from "@/lib/app-types";
 import type { ReactNode } from "react";
+
+const multiTextMetadataCodes = ["MATA_KULIAH_DIAMPU", "RANTING_ILMU_KEPAKARAN"];
+
+function isMultiTextMetadataRequirement(code: string) {
+  return multiTextMetadataCodes.includes(code);
+}
+
+function getMetadataItems(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return [];
+  }
+
+  const data = metadata as {
+    items?: unknown;
+    metadataItems?: unknown;
+  };
+
+  const rawItems = Array.isArray(data.items)
+    ? data.items
+    : Array.isArray(data.metadataItems)
+      ? data.metadataItems
+      : [];
+
+  return rawItems.map((item) => String(item || "").trim()).filter(Boolean);
+}
 
 function formatDate(date?: Date | null) {
   if (!date) return "-";
@@ -326,11 +350,9 @@ export default async function AdminDosenDetailPage({
                   </p>
                 </div>
 
-                <LecturerAvatar
-                  lecturerId={lecturer.id}
-                  name={lecturer.fullName}
-                  size="lg"
-                />
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10">
+                  <ShieldCheck size={32} />
+                </div>
               </div>
 
               <div className="mt-6 h-4 overflow-hidden rounded-full bg-white/10">
@@ -441,6 +463,10 @@ export default async function AdminDosenDetailPage({
                     requirement.submissions,
                   );
 
+                  const isMetadataOnly = isMultiTextMetadataRequirement(
+                    requirement.code,
+                  );
+
                   return (
                     <article
                       key={requirement.id}
@@ -471,7 +497,9 @@ export default async function AdminDosenDetailPage({
                               )}
 
                               <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-600">
-                                {requirement.inputType}
+                                {isMetadataOnly
+                                  ? "ISIAN TEKS"
+                                  : requirement.inputType}
                               </span>
 
                               <StatusPill status={mainStatus} />
@@ -490,7 +518,7 @@ export default async function AdminDosenDetailPage({
 
                       <div className="grid gap-4 p-5">
                         {requirement.submissions.length === 0 ? (
-                          <EmptyRequirement />
+                          <EmptyRequirement isMetadataOnly={isMetadataOnly} />
                         ) : (
                           requirement.submissions.map((submission) => (
                             <div
@@ -516,56 +544,98 @@ export default async function AdminDosenDetailPage({
                                     <StatusPill status={submission.status} />
                                   </div>
 
-                                  <div className="mt-5 grid gap-3 md:grid-cols-2">
-                                    <MetaCard
-                                      icon={<FileText size={16} />}
-                                      label="Nama File"
-                                      value={submission.fileName || "-"}
-                                    />
-
-                                    <MetaCard
-                                      icon={<FileText size={16} />}
-                                      label="Ukuran File"
-                                      value={formatFileSize(
-                                        submission.fileSize,
+                                  {isMetadataOnly ? (
+                                    <MetadataItemsAdmin
+                                      title={requirement.name}
+                                      items={getMetadataItems(
+                                        submission.metadata,
                                       )}
                                     />
+                                  ) : (
+                                    <>
+                                      <div className="mt-5 grid gap-3 md:grid-cols-2">
+                                        <MetaCard
+                                          icon={<FileText size={16} />}
+                                          label="Nama File"
+                                          value={submission.fileName || "-"}
+                                        />
 
-                                    <MetaCard
-                                      icon={<CalendarDays size={16} />}
-                                      label="Tahun SKP"
-                                      value={
-                                        submission.academicYear
-                                          ? String(submission.academicYear)
-                                          : "-"
-                                      }
-                                    />
+                                        <MetaCard
+                                          icon={<FileText size={16} />}
+                                          label="Ukuran File"
+                                          value={formatFileSize(
+                                            submission.fileSize,
+                                          )}
+                                        />
 
-                                    <MetaCard
-                                      icon={<CheckCircle2 size={16} />}
-                                      label="Predikat SKP"
-                                      value={submission.skpPredicate || "-"}
-                                    />
+                                        <MetaCard
+                                          icon={<CalendarDays size={16} />}
+                                          label="Tahun SKP"
+                                          value={
+                                            submission.academicYear
+                                              ? String(submission.academicYear)
+                                              : "-"
+                                          }
+                                        />
 
-                                    <MetaCard
-                                      icon={<Hash size={16} />}
-                                      label="Nomor Surat"
-                                      value={submission.letterNumber || "-"}
-                                    />
+                                        <MetaCard
+                                          icon={<CheckCircle2 size={16} />}
+                                          label="Predikat SKP"
+                                          value={submission.skpPredicate || "-"}
+                                        />
 
-                                    <MetaCard
-                                      icon={<CalendarDays size={16} />}
-                                      label="Tanggal Surat"
-                                      value={formatDate(submission.letterDate)}
-                                    />
+                                        <MetaCard
+                                          icon={<Hash size={16} />}
+                                          label="Nomor Surat"
+                                          value={submission.letterNumber || "-"}
+                                        />
 
-                                    <MetaCard
-                                      icon={<Link2 size={16} />}
-                                      label="Tautan Eksternal"
-                                      value={submission.externalUrl || "-"}
-                                      wide
-                                    />
-                                  </div>
+                                        <MetaCard
+                                          icon={<CalendarDays size={16} />}
+                                          label="Tanggal Surat"
+                                          value={formatDate(
+                                            submission.letterDate,
+                                          )}
+                                        />
+
+                                        <MetaCard
+                                          icon={<Link2 size={16} />}
+                                          label="Tautan Eksternal"
+                                          value={submission.externalUrl || "-"}
+                                          wide
+                                        />
+                                      </div>
+
+                                      <div className="mt-5 flex flex-wrap gap-3">
+                                        {submission.storagePath && (
+                                          <FilePreviewModal
+                                            title={
+                                              submission.academicYear
+                                                ? `${requirement.name} ${submission.academicYear}`
+                                                : requirement.name
+                                            }
+                                            fileName={submission.fileName}
+                                            mimeType={submission.mimeType}
+                                            previewUrl={`/api/files/${submission.id}`}
+                                            downloadUrl={`/api/files/${submission.id}?download=1`}
+                                            buttonLabel="Preview File"
+                                          />
+                                        )}
+
+                                        {submission.externalUrl && (
+                                          <a
+                                            href={submission.externalUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                                          >
+                                            Buka Link
+                                            <ExternalLink size={16} />
+                                          </a>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
 
                                   {submission.adminNote && (
                                     <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold leading-6 text-amber-800">
@@ -573,35 +643,6 @@ export default async function AdminDosenDetailPage({
                                       {submission.adminNote}
                                     </div>
                                   )}
-
-                                  <div className="mt-5 flex flex-wrap gap-3">
-                                    {submission.storagePath && (
-                                      <FilePreviewModal
-                                        title={
-                                          submission.academicYear
-                                            ? `${requirement.name} ${submission.academicYear}`
-                                            : requirement.name
-                                        }
-                                        fileName={submission.fileName}
-                                        mimeType={submission.mimeType}
-                                        previewUrl={`/api/files/${submission.id}`}
-                                        downloadUrl={`/api/files/${submission.id}?download=1`}
-                                        buttonLabel="Preview File"
-                                      />
-                                    )}
-
-                                    {submission.externalUrl && (
-                                      <a
-                                        href={submission.externalUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
-                                      >
-                                        Buka Link
-                                        <ExternalLink size={16} />
-                                      </a>
-                                    )}
-                                  </div>
 
                                   <DocumentVersionHistory
                                     versions={submission.versions}
@@ -755,18 +796,69 @@ function MetaCard({
   );
 }
 
-function EmptyRequirement() {
+function MetadataItemsAdmin({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-white p-6 text-center">
+        <p className="font-black text-slate-900">
+          Belum ada metadata yang dikirim
+        </p>
+
+        <p className="mt-2 text-sm font-semibold text-slate-500">
+          Dosen belum mengisi data untuk {title}.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-5 rounded-3xl border border-sky-200 bg-sky-50 p-5">
+      <p className="text-xs font-black uppercase tracking-widest text-sky-700">
+        Data Metadata
+      </p>
+
+      <h4 className="mt-2 text-xl font-black text-slate-950">{title}</h4>
+
+      <ol className="mt-4 grid gap-3">
+        {items.map((item, index) => (
+          <li
+            key={`${item}-${index}`}
+            className="flex gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700"
+          >
+            <span className="font-black text-sky-700">{index + 1}.</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function EmptyRequirement({
+  isMetadataOnly = false,
+}: {
+  isMetadataOnly?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center">
       <CircleDashed className="mx-auto mb-3 text-slate-400" size={34} />
 
       <p className="font-black text-slate-700">
-        Belum ada dokumen atau metadata
+        {isMetadataOnly
+          ? "Belum ada metadata yang dikirim"
+          : "Belum ada dokumen atau metadata"}
       </p>
 
       <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-        Dosen belum mengirim data untuk syarat ini. Setelah dosen upload atau
-        mengisi link/metadata, admin dapat memverifikasi dari halaman ini.
+        {isMetadataOnly
+          ? "Dosen belum mengisi data untuk syarat ini. Setelah dosen mengisi data, admin dapat memverifikasi dari halaman ini."
+          : "Dosen belum mengirim data untuk syarat ini. Setelah dosen upload atau mengisi link/metadata, admin dapat memverifikasi dari halaman ini."}
       </p>
     </div>
   );
