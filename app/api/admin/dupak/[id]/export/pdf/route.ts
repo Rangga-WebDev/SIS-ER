@@ -19,9 +19,11 @@ type EvidenceItem = {
   id: string;
   rowCode: string;
   rowLabel: string;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
+  evidenceUrl: string | null;
+  fileName: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  note: string | null;
   uploadedAt: Date;
 };
 
@@ -343,9 +345,11 @@ export async function GET(
           id: true,
           rowCode: true,
           rowLabel: true,
+          evidenceUrl: true,
           fileName: true,
           fileSize: true,
           mimeType: true,
+          note: true,
           uploadedAt: true,
         },
       },
@@ -368,7 +372,17 @@ export async function GET(
 
   for (const evidence of submission.evidences) {
     if (!evidenceMap.has(evidence.rowCode)) {
-      evidenceMap.set(evidence.rowCode, evidence);
+      evidenceMap.set(evidence.rowCode, {
+        id: evidence.id,
+        rowCode: evidence.rowCode,
+        rowLabel: evidence.rowLabel,
+        evidenceUrl: evidence.evidenceUrl ?? null,
+        fileName: evidence.fileName ?? null,
+        fileSize: evidence.fileSize ?? null,
+        mimeType: evidence.mimeType ?? null,
+        note: evidence.note ?? null,
+        uploadedAt: evidence.uploadedAt,
+      });
     }
   }
 
