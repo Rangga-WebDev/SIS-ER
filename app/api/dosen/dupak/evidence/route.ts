@@ -3,19 +3,9 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
 import { DUPAK_TEMPLATE_ROWS } from "@/lib/dupak-template";
 
 export const runtime = "nodejs";
-
-const MAX_FILE_SIZE_MB = 5;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
-const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png"];
-
-function safeFileName(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 140);
-}
 
 function toNullableString(value: FormDataEntryValue | null) {
   const text = String(value || "").trim();
@@ -24,6 +14,18 @@ function toNullableString(value: FormDataEntryValue | null) {
 
 function findDupakRow(rowCode: string) {
   return DUPAK_TEMPLATE_ROWS.find((row) => row.code === rowCode);
+}
+
+function isGoogleDriveUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return (
+      url.hostname.includes("drive.google.com") ||
+      url.hostname.includes("docs.google.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(request: Request) {
@@ -54,8 +56,8 @@ export async function POST(request: Request) {
 
     const rowCode = String(formData.get("rowCode") || "").trim();
     const rowLabelFromClient = toNullableString(formData.get("rowLabel"));
+    const evidenceUrl = toNullableString(formData.get("evidenceUrl"));
     const note = toNullableString(formData.get("note"));
-    const file = formData.get("file");
 
     if (!rowCode) {
       return NextResponse.json(
@@ -80,35 +82,25 @@ export async function POST(request: Request) {
     if (row.type !== "ITEM") {
       return NextResponse.json(
         {
-          message: "Bukti dokumen hanya dapat diunggah pada baris kegiatan.",
+          message: "Bukti hanya dapat disimpan pada baris kegiatan.",
         },
         { status: 400 },
       );
     }
 
-    if (!(file instanceof File)) {
+    if (!evidenceUrl) {
       return NextResponse.json(
         {
-          message: "File bukti dokumen wajib diunggah.",
+          message: "Link Google Drive bukti DUPAK wajib diisi.",
         },
         { status: 400 },
       );
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    if (!isGoogleDriveUrl(evidenceUrl)) {
       return NextResponse.json(
         {
-          message: `Ukuran file maksimal ${MAX_FILE_SIZE_MB} MB.`,
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-      return NextResponse.json(
-        {
-          message:
-            "Tipe file tidak diizinkan. Gunakan PDF, JPG, JPEG, atau PNG.",
+          message: "Bukti DUPAK wajib menggunakan link Google Drive.",
         },
         { status: 400 },
       );
@@ -138,36 +130,7 @@ export async function POST(request: Request) {
       },
     });
 
-    const fileName = safeFileName(file.name);
-    const fileSize = file.size;
-    const mimeType = file.type;
     const rowLabel = rowLabelFromClient || row.label;
-
-    const storagePath = [
-      "dupak",
-      lecturer.id,
-      dupakSubmission.id,
-      rowCode,
-      `${Date.now()}-${fileName}`,
-    ].join("/");
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(storageBucket)
-      .upload(storagePath, buffer, {
-        contentType: mimeType,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      return NextResponse.json(
-        {
-          message: uploadError.message,
-        },
-        { status: 500 },
-      );
-    }
 
     const existingEvidence = await prisma.dupakEvidence.findFirst({
       where: {
@@ -186,10 +149,11 @@ export async function POST(request: Request) {
           },
           data: {
             rowLabel,
-            fileName,
-            fileSize,
-            mimeType,
-            storagePath,
+            evidenceUrl,
+            fileName: null,
+            fileSize: null,
+            mimeType: null,
+            storagePath: null,
             note,
             uploaderId: user.id,
             uploaderEmail: user.email,
@@ -200,10 +164,11 @@ export async function POST(request: Request) {
             dupakSubmissionId: dupakSubmission.id,
             rowCode,
             rowLabel,
-            fileName,
-            fileSize,
-            mimeType,
-            storagePath,
+            evidenceUrl,
+            fileName: null,
+            fileSize: null,
+            mimeType: null,
+            storagePath: null,
             note,
             uploaderId: user.id,
             uploaderEmail: user.email,
@@ -213,7 +178,7 @@ export async function POST(request: Request) {
     await prisma.activityLog.create({
       data: {
         actorId: user.id,
-        action: "DUPAK_EVIDENCE_UPLOAD",
+        action: "DUPAK_EVIDENCE_LINK_SAVE",
         entity: "DupakEvidence",
         entityId: evidence.id,
         metadata: {
@@ -222,23 +187,21 @@ export async function POST(request: Request) {
           dupakSubmissionId: dupakSubmission.id,
           rowCode,
           rowLabel,
-          fileName,
-          fileSize,
-          mimeType,
+          evidenceUrl,
         },
       },
     });
 
     return NextResponse.json({
-      message: "Bukti dokumen DUPAK berhasil diunggah.",
+      message: "Link bukti DUPAK berhasil disimpan.",
       evidence,
     });
   } catch (error) {
-    console.error("DUPAK_EVIDENCE_UPLOAD_ERROR:", error);
+    console.error("DUPAK_EVIDENCE_LINK_SAVE_ERROR:", error);
 
     return NextResponse.json(
       {
-        message: "Gagal mengunggah bukti dokumen DUPAK.",
+        message: "Gagal menyimpan link bukti DUPAK.",
       },
       { status: 500 },
     );

@@ -27,17 +27,9 @@ import {
 } from "@/lib/dupak-template";
 import DupakPreview from "@/components/dupak/DupakPreview";
 import FilePreviewModal from "@/components/documents/FilePreviewModal";
-
-type DupakEvidenceItem = {
-  id: string;
-  rowCode: string;
-  rowLabel: string;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
-  note: string | null;
-  uploadedAt: string;
-};
+import DupakEvidenceLinkCell, {
+  type DupakEvidenceItem,
+} from "@/components/dosen/DupakEvidenceLinkCell";
 
 type InitialDupak = {
   nomor: string;
@@ -518,7 +510,7 @@ export default function DupakFormClient({ initialData }: Props) {
                             }
                           />
                           <ReadOnlyCell value={getAssessorTotal(value)} />
-                          <EvidenceCell
+                          <DupakEvidenceLinkCell
                             rowCode={row.code}
                             rowLabel={row.label}
                             evidence={evidence}
@@ -762,9 +754,10 @@ function EvidenceCell({
         id: string;
         rowCode: string;
         rowLabel: string;
-        fileName: string;
-        fileSize: number;
-        mimeType: string;
+        evidenceUrl: string | null;
+        fileName: string | null;
+        fileSize: number | null;
+        mimeType: string | null;
         note: string | null;
         uploadedAt: string;
       };
@@ -773,11 +766,15 @@ function EvidenceCell({
         id: uploadedEvidence.id,
         rowCode: uploadedEvidence.rowCode,
         rowLabel: uploadedEvidence.rowLabel,
-        fileName: uploadedEvidence.fileName,
-        fileSize: uploadedEvidence.fileSize,
-        mimeType: uploadedEvidence.mimeType,
-        note: uploadedEvidence.note,
-        uploadedAt: uploadedEvidence.uploadedAt,
+        evidenceUrl: uploadedEvidence.evidenceUrl ?? null,
+        fileName: uploadedEvidence.fileName ?? null,
+        fileSize: uploadedEvidence.fileSize ?? null,
+        mimeType: uploadedEvidence.mimeType ?? null,
+        note: uploadedEvidence.note ?? null,
+        uploadedAt:
+          typeof uploadedEvidence.uploadedAt === "string"
+            ? uploadedEvidence.uploadedAt
+            : new Date(uploadedEvidence.uploadedAt).toISOString(),
       });
     } catch {
       setLocalError("Tidak dapat terhubung ke server.");

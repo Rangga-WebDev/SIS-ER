@@ -1,232 +1,115 @@
 /** @format */
 
-import { Buffer } from "node:buffer";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { getCurrentUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  DUPAK_PERSONAL_FIELDS,
-  DUPAK_TEMPLATE_ROWS,
-  getAssessorTotal,
-  getProposerTotal,
-  type DupakCreditData,
-  type DupakPersonalData,
-} from "@/lib/dupak-template";
+import { DUPAK_TEMPLATE_ROWS } from "@/lib/dupak-template";
 
 export const runtime = "nodejs";
 
-type EvidenceItem = {
-  id: string;
-  rowCode: string;
-  rowLabel: string;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
-  uploadedAt: Date;
-};
+function getDupakIdFromPath(request: NextRequest) {
+  const segments = request.nextUrl.pathname.split("/").filter(Boolean);
+  const dupakIndex = segments.findIndex((segment) => segment === "dupak");
 
-function toObject<T>(value: unknown, fallback: T): T {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return fallback;
-  }
+  if (dupakIndex < 0) return "";
 
-  return value as T;
+  return segments[dupakIndex + 1] || "";
 }
 
-function formatDate(date?: Date | string | null) {
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(date));
-}
-
-function formatDateTime(date?: Date | string | null) {
-  if (!date) return "-";
-
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(date));
-}
-
-function formatFileSize(size?: number | null) {
-  if (!size) return "-";
-  return `${(size / 1024 / 1024).toFixed(2)} MB`;
-}
-
-function safeFileName(name: string) {
-  return name
+function safeFileName(value: string) {
+  return value
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .replace(/_+/g, "_")
-    .slice(0, 120);
+    .slice(0, 160);
 }
 
-function styleTitleRow(row: ExcelJS.Row) {
-  row.font = {
-    bold: true,
-    color: { argb: "FFFFFFFF" },
-  };
+function getObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
 
-  row.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF0F172A" },
-  };
-
-  row.alignment = {
-    vertical: "middle",
-    horizontal: "center",
-    wrapText: true,
-  };
+  return value as Record<string, unknown>;
 }
 
-function styleHeaderRow(row: ExcelJS.Row) {
-  row.font = {
-    bold: true,
-    color: { argb: "FFFFFFFF" },
-  };
+function getRowCreditData(creditData: unknown, rowCode: string) {
+  const data = getObject(creditData);
 
-  row.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF1E293B" },
-  };
+  const direct = getObject(data[rowCode]);
+  const rows = getObject(data.rows);
+  const fromRows = getObject(rows[rowCode]);
 
-  row.alignment = {
-    vertical: "middle",
-    horizontal: "center",
-    wrapText: true,
-  };
-
-  row.eachCell((cell) => {
-    cell.border = {
-      top: { style: "thin", color: { argb: "FFCBD5E1" } },
-      left: { style: "thin", color: { argb: "FFCBD5E1" } },
-      bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
-      right: { style: "thin", color: { argb: "FFCBD5E1" } },
-    };
-  });
+  return Object.keys(direct).length > 0 ? direct : fromRows;
 }
 
-function styleBodyRow(row: ExcelJS.Row) {
-  row.alignment = {
-    vertical: "middle",
-    wrapText: true,
-  };
+function getNumberFromRow(
+  rowData: Record<string, unknown>,
+  keys: string[],
+): number | null {
+  for (const key of keys) {
+    const value = rowData[key];
 
-  row.eachCell((cell) => {
-    cell.border = {
-      top: { style: "thin", color: { argb: "FFE2E8F0" } },
-      left: { style: "thin", color: { argb: "FFE2E8F0" } },
-      bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
-      right: { style: "thin", color: { argb: "FFE2E8F0" } },
-    };
-  });
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      const parsed = Number(value.replace(",", "."));
+
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return null;
 }
 
-function styleSectionRow(row: ExcelJS.Row) {
-  row.font = {
-    bold: true,
-    color: { argb: "FF0C4A6E" },
-  };
-
-  row.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFE0F2FE" },
-  };
-
-  row.alignment = {
-    vertical: "middle",
-    wrapText: true,
-  };
-
-  row.eachCell((cell) => {
-    cell.border = {
-      top: { style: "thin", color: { argb: "FFBAE6FD" } },
-      left: { style: "thin", color: { argb: "FFBAE6FD" } },
-      bottom: { style: "thin", color: { argb: "FFBAE6FD" } },
-      right: { style: "thin", color: { argb: "FFBAE6FD" } },
-    };
-  });
+function formatNumber(value: number | null) {
+  if (value === null || value === undefined) return "";
+  return value;
 }
 
-function styleTotalRow(row: ExcelJS.Row) {
-  row.font = {
-    bold: true,
-    color: { argb: "FF0F172A" },
-  };
-
-  row.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFF1F5F9" },
-  };
-
-  row.alignment = {
-    vertical: "middle",
-    wrapText: true,
-  };
-
-  row.eachCell((cell) => {
-    cell.border = {
-      top: { style: "thin", color: { argb: "FFCBD5E1" } },
-      left: { style: "thin", color: { argb: "FFCBD5E1" } },
-      bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
-      right: { style: "thin", color: { argb: "FFCBD5E1" } },
-    };
-  });
-}
-
-function getBaseUrl(request: Request) {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  if (envUrl) return envUrl.replace(/\/$/, "");
-
-  const url = new URL(request.url);
-  return url.origin;
-}
-
-export async function GET(
-  request: Request,
-  context: {
-    params: Promise<{
-      id: string;
-    }>;
-  },
+function findEvidence(
+  evidences: {
+    id: string;
+    rowCode: string;
+    rowLabel: string;
+    evidenceUrl: string | null;
+    note: string | null;
+    uploadedAt: Date;
+  }[],
+  rowCode: string,
 ) {
-  const user = await getCurrentUser();
+  return evidences.find((item) => item.rowCode === rowCode) || null;
+}
 
-  if (!user) {
+export async function GET(request: NextRequest) {
+  const { user, error } = await requireUser("ADMIN");
+
+  if (error || !user) {
     return NextResponse.json(
       {
-        message: "Silakan login terlebih dahulu.",
+        message: "Tidak memiliki akses.",
       },
       { status: 401 },
     );
   }
 
-  if (user.role !== "ADMIN") {
+  const dupakId = getDupakIdFromPath(request);
+
+  if (!dupakId || dupakId === "dupak") {
     return NextResponse.json(
       {
-        message: "Hanya admin yang dapat mengunduh DUPAK.",
+        message: "ID DUPAK tidak valid.",
       },
-      { status: 403 },
+      { status: 400 },
     );
   }
 
-  const { id } = await context.params;
-
   const submission = await prisma.dupakSubmission.findUnique({
     where: {
-      id,
+      id: dupakId,
     },
     include: {
       lecturer: {
@@ -246,9 +129,8 @@ export async function GET(
           id: true,
           rowCode: true,
           rowLabel: true,
-          fileName: true,
-          fileSize: true,
-          mimeType: true,
+          evidenceUrl: true,
+          note: true,
           uploadedAt: true,
         },
       },
@@ -264,321 +146,235 @@ export async function GET(
     );
   }
 
-  const personalData = toObject<DupakPersonalData>(submission.personalData, {});
-  const creditData = toObject<DupakCreditData>(submission.creditData, {});
-  const baseUrl = getBaseUrl(request);
-
-  const evidenceMap = new Map<string, EvidenceItem>();
-
-  for (const evidence of submission.evidences) {
-    if (!evidenceMap.has(evidence.rowCode)) {
-      evidenceMap.set(evidence.rowCode, evidence);
-    }
-  }
-
   const workbook = new ExcelJS.Workbook();
 
   workbook.creator = "JAFUNG SMART";
   workbook.created = new Date();
-  workbook.modified = new Date();
 
-  const identitySheet = workbook.addWorksheet("Identitas DUPAK", {
-    views: [{ showGridLines: false }],
+  const worksheet = workbook.addWorksheet("DUPAK", {
+    views: [{ state: "frozen", ySplit: 3 }],
   });
 
-  identitySheet.columns = [
-    { key: "label", width: 38 },
-    { key: "value", width: 78 },
+  worksheet.columns = [
+    { key: "kegiatan", width: 62 },
+    { key: "pengusulLama", width: 15 },
+    { key: "pengusulBaru", width: 15 },
+    { key: "pengusulJumlah", width: 15 },
+    { key: "penilaiLama", width: 15 },
+    { key: "penilaiBaru", width: 15 },
+    { key: "penilaiJumlah", width: 15 },
+    { key: "bukti", width: 40 },
   ];
 
-  identitySheet.mergeCells("A1:B1");
-  identitySheet.getCell("A1").value =
-    "DAFTAR USUL PENETAPAN ANGKA KREDIT JABATAN AKADEMIK DOSEN";
-  identitySheet.getCell("A1").font = {
+  worksheet.mergeCells("A1:H1");
+  worksheet.getCell("A1").value = "TABEL ANGKA KREDIT DUPAK DOSEN";
+  worksheet.getCell("A1").font = {
     bold: true,
-    size: 14,
     color: { argb: "FFFFFFFF" },
+    size: 14,
   };
-  identitySheet.getCell("A1").alignment = {
+  worksheet.getCell("A1").alignment = {
     horizontal: "center",
     vertical: "middle",
   };
-  identitySheet.getCell("A1").fill = {
+  worksheet.getCell("A1").fill = {
     type: "pattern",
     pattern: "solid",
-    fgColor: { argb: "FF0F172A" },
+    fgColor: { argb: "FF111827" },
   };
-  identitySheet.getRow(1).height = 28;
 
-  const identityRows: [string, string][] = [
-    ["Nomor", submission.nomor || "-"],
-    ["Instansi", submission.instansi || "-"],
-    [
-      "Masa Penilaian",
-      `${formatDate(submission.masaPenilaianStart)} s.d. ${formatDate(
-        submission.masaPenilaianEnd,
-      )}`,
-    ],
-    ["Status", submission.status],
-    ["Progress", `${submission.completionPercent}%`],
-    ["Jumlah Bukti Dokumen", `${submission.evidences.length} file`],
-    ["Nama Dosen", submission.lecturer.fullName],
-    ["Email", submission.lecturer.user.email],
-    ["NIDN/NUPTK", submission.lecturer.nidnOrNuptk],
-    ["Program Studi", submission.lecturer.studyProgram],
-    ["Jabatan Akademik", submission.lecturer.academicPosition],
-    ["Tanggal Export", formatDateTime(new Date())],
-  ];
+  worksheet.mergeCells("A2:A3");
+  worksheet.getCell("A2").value = "Unsur, Sub Unsur dan Butir Kegiatan";
 
-  for (const [label, value] of identityRows) {
-    const row = identitySheet.addRow([label, value]);
-    row.getCell(1).font = { bold: true };
-    styleBodyRow(row);
+  worksheet.mergeCells("B2:D2");
+  worksheet.getCell("B2").value = "Instansi Pengusul";
+
+  worksheet.mergeCells("E2:G2");
+  worksheet.getCell("E2").value = "Tim Penilai";
+
+  worksheet.mergeCells("H2:H3");
+  worksheet.getCell("H2").value = "Bukti Dokumen";
+
+  worksheet.getCell("B3").value = "Lama";
+  worksheet.getCell("C3").value = "Baru";
+  worksheet.getCell("D3").value = "Jumlah";
+  worksheet.getCell("E3").value = "Lama";
+  worksheet.getCell("F3").value = "Baru";
+  worksheet.getCell("G3").value = "Jumlah";
+
+  for (let rowNumber = 2; rowNumber <= 3; rowNumber += 1) {
+    const row = worksheet.getRow(rowNumber);
+
+    row.eachCell((cell) => {
+      cell.font = {
+        bold: true,
+        color: { argb: "FFFFFFFF" },
+      };
+      cell.alignment = {
+        horizontal: "center",
+        vertical: "middle",
+        wrapText: true,
+      };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF111827" },
+      };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE5E7EB" } },
+        left: { style: "thin", color: { argb: "FFE5E7EB" } },
+        bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+        right: { style: "thin", color: { argb: "FFE5E7EB" } },
+      };
+    });
   }
 
-  identitySheet.addRow([]);
-  const personalTitle = identitySheet.addRow(["Keterangan Perorangan", ""]);
-  personalTitle.getCell(1).font = { bold: true };
-  personalTitle.getCell(1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFE0F2FE" },
-  };
+  worksheet.addRow([]);
 
-  for (const field of DUPAK_PERSONAL_FIELDS) {
-    const row = identitySheet.addRow([
-      field.label,
-      String(personalData[field.key] || "-"),
+  const creditData = getObject(submission.creditData);
+
+  DUPAK_TEMPLATE_ROWS.forEach((templateRow) => {
+    const rowData = getRowCreditData(creditData, templateRow.code);
+
+    const pengusulLama = getNumberFromRow(rowData, [
+      "pengusulLama",
+      "instansiPengusulLama",
+      "lamaPengusul",
+      "oldProposed",
     ]);
 
-    row.getCell(1).font = { bold: true };
-    styleBodyRow(row);
-  }
+    const pengusulBaru = getNumberFromRow(rowData, [
+      "pengusulBaru",
+      "instansiPengusulBaru",
+      "baruPengusul",
+      "newProposed",
+    ]);
 
-  const dupakSheet = workbook.addWorksheet("Tabel DUPAK", {
-    views: [{ state: "frozen", ySplit: 4 }],
-  });
+    const pengusulJumlah =
+      getNumberFromRow(rowData, [
+        "pengusulJumlah",
+        "instansiPengusulJumlah",
+        "jumlahPengusul",
+        "totalProposed",
+      ]) ??
+      (pengusulLama !== null || pengusulBaru !== null
+        ? Number(pengusulLama || 0) + Number(pengusulBaru || 0)
+        : null);
 
-  dupakSheet.columns = [
-    { key: "unsur", width: 60 },
-    { key: "instansiLama", width: 14 },
-    { key: "instansiBaru", width: 14 },
-    { key: "instansiJumlah", width: 16 },
-    { key: "timLama", width: 14 },
-    { key: "timBaru", width: 14 },
-    { key: "timJumlah", width: 16 },
-    { key: "bukti", width: 42 },
-  ];
+    const penilaiLama = getNumberFromRow(rowData, [
+      "penilaiLama",
+      "timPenilaiLama",
+      "lamaPenilai",
+      "oldAssessed",
+    ]);
 
-  dupakSheet.mergeCells("A1:H1");
-  dupakSheet.getCell("A1").value = "TABEL ANGKA KREDIT DUPAK DOSEN";
-  dupakSheet.getCell("A1").font = {
-    bold: true,
-    size: 14,
-    color: { argb: "FFFFFFFF" },
-  };
-  dupakSheet.getCell("A1").alignment = {
-    horizontal: "center",
-    vertical: "middle",
-  };
-  dupakSheet.getCell("A1").fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF0F172A" },
-  };
-  dupakSheet.getRow(1).height = 28;
+    const penilaiBaru = getNumberFromRow(rowData, [
+      "penilaiBaru",
+      "timPenilaiBaru",
+      "baruPenilai",
+      "newAssessed",
+    ]);
 
-  const header1 = dupakSheet.addRow([
-    "Unsur, Sub Unsur dan Butir Kegiatan",
-    "Instansi Pengusul",
-    "",
-    "",
-    "Tim Penilai",
-    "",
-    "",
-    "Bukti Dokumen",
-  ]);
-  styleTitleRow(header1);
+    const penilaiJumlah =
+      getNumberFromRow(rowData, [
+        "penilaiJumlah",
+        "timPenilaiJumlah",
+        "jumlahPenilai",
+        "totalAssessed",
+      ]) ??
+      (penilaiLama !== null || penilaiBaru !== null
+        ? Number(penilaiLama || 0) + Number(penilaiBaru || 0)
+        : null);
 
-  const header2 = dupakSheet.addRow([
-    "",
-    "Lama",
-    "Baru",
-    "Jumlah",
-    "Lama",
-    "Baru",
-    "Jumlah",
-    "",
-  ]);
-  styleHeaderRow(header2);
-
-  dupakSheet.mergeCells("A2:A3");
-  dupakSheet.mergeCells("B2:D2");
-  dupakSheet.mergeCells("E2:G2");
-  dupakSheet.mergeCells("H2:H3");
-
-  for (const rowTemplate of DUPAK_TEMPLATE_ROWS) {
-    const value = creditData[rowTemplate.code];
-    const evidence = evidenceMap.get(rowTemplate.code);
-
-    if (rowTemplate.type === "SECTION") {
-      const row = dupakSheet.addRow([
-        rowTemplate.label,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ]);
-      dupakSheet.mergeCells(`A${row.number}:H${row.number}`);
-      styleSectionRow(row);
-      continue;
-    }
-
-    const row = dupakSheet.addRow([
-      `${"   ".repeat(rowTemplate.level)}${rowTemplate.label}`,
-      value?.oldProposer || "",
-      value?.newProposer || "",
-      getProposerTotal(value) || "",
-      value?.oldAssessor || "",
-      value?.newAssessor || "",
-      getAssessorTotal(value) || "",
+    const excelRow = worksheet.addRow([
+      templateRow.label,
+      formatNumber(pengusulLama),
+      formatNumber(pengusulBaru),
+      formatNumber(pengusulJumlah),
+      formatNumber(penilaiLama),
+      formatNumber(penilaiBaru),
+      formatNumber(penilaiJumlah),
       "",
     ]);
 
-    if (rowTemplate.type === "TOTAL") {
-      row.getCell(8).value = "Tidak perlu bukti";
-      styleTotalRow(row);
-      continue;
-    }
+    const currentRowNumber = excelRow.number;
+    const evidenceCell = worksheet.getCell(`H${currentRowNumber}`);
 
-    if (evidence) {
-      row.getCell(8).value = {
-        text: evidence.fileName,
-        hyperlink: `${baseUrl}/api/files/dupak-evidence/${evidence.id}`,
-      };
-      row.getCell(8).font = {
-        color: { argb: "FF0369A1" },
-        underline: true,
+    if (templateRow.type === "TOTAL") {
+      evidenceCell.value = "Tidak perlu bukti";
+      evidenceCell.font = {
         bold: true,
+        color: { argb: "FF111827" },
       };
-      row.getCell(8).note =
-        `File: ${evidence.fileName}\nUkuran: ${formatFileSize(
-          evidence.fileSize,
-        )}\nUpload: ${formatDateTime(evidence.uploadedAt)}`;
     } else {
-      row.getCell(8).value = "Belum ada bukti";
-      row.getCell(8).font = {
-        color: { argb: "FF94A3B8" },
-        italic: true,
+      const evidence = findEvidence(submission.evidences, templateRow.code);
+
+      if (evidence?.evidenceUrl) {
+        evidenceCell.value = {
+          text: "Buka Link Bukti",
+          hyperlink: evidence.evidenceUrl,
+        };
+        evidenceCell.font = {
+          color: { argb: "FF0563C1" },
+          underline: true,
+          bold: true,
+        };
+      } else {
+        evidenceCell.value = "Belum ada bukti";
+        evidenceCell.font = {
+          italic: true,
+          color: { argb: "FF94A3B8" },
+        };
+      }
+    }
+
+    excelRow.eachCell((cell) => {
+      cell.alignment = {
+        vertical: "middle",
+        wrapText: true,
+      };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE2E8F0" } },
+        left: { style: "thin", color: { argb: "FFE2E8F0" } },
+        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+        right: { style: "thin", color: { argb: "FFE2E8F0" } },
+      };
+    });
+
+    if (templateRow.type === "SECTION") {
+      excelRow.font = {
+        bold: true,
+        color: { argb: "FF075985" },
+      };
+      excelRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE0F2FE" },
       };
     }
 
-    styleBodyRow(row);
-  }
-
-  dupakSheet.addRow([]);
-  const supportTitle = dupakSheet.addRow(["Lampiran Pendukung DUPAK"]);
-  supportTitle.getCell(1).font = { bold: true };
-  supportTitle.getCell(1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFE0F2FE" },
-  };
-
-  const supportRow = dupakSheet.addRow([submission.supportNotes || "-"]);
-  dupakSheet.mergeCells(`A${supportRow.number}:H${supportRow.number}`);
-  supportRow.alignment = {
-    wrapText: true,
-    vertical: "top",
-  };
-
-  const evidenceSheet = workbook.addWorksheet("Bukti Dokumen", {
-    views: [{ state: "frozen", ySplit: 1 }],
-  });
-
-  evidenceSheet.columns = [
-    { key: "no", width: 8 },
-    { key: "rowCode", width: 32 },
-    { key: "rowLabel", width: 55 },
-    { key: "fileName", width: 42 },
-    { key: "fileSize", width: 16 },
-    { key: "mimeType", width: 24 },
-    { key: "uploadedAt", width: 24 },
-    { key: "preview", width: 45 },
-  ];
-
-  const evidenceHeader = evidenceSheet.addRow([
-    "No",
-    "Kode Baris",
-    "Butir Kegiatan",
-    "Nama File",
-    "Ukuran",
-    "Tipe File",
-    "Waktu Upload",
-    "Link Preview",
-  ]);
-
-  styleHeaderRow(evidenceHeader);
-
-  if (submission.evidences.length === 0) {
-    const emptyRow = evidenceSheet.addRow([
-      1,
-      "-",
-      "Belum ada bukti dokumen",
-      "-",
-      "-",
-      "-",
-      "-",
-      "-",
-    ]);
-    styleBodyRow(emptyRow);
-  } else {
-    submission.evidences.forEach((evidence, index) => {
-      const row = evidenceSheet.addRow([
-        index + 1,
-        evidence.rowCode,
-        evidence.rowLabel,
-        evidence.fileName,
-        formatFileSize(evidence.fileSize),
-        evidence.mimeType,
-        formatDateTime(evidence.uploadedAt),
-        "",
-      ]);
-
-      row.getCell(8).value = {
-        text: "Buka / Preview Bukti",
-        hyperlink: `${baseUrl}/api/files/dupak-evidence/${evidence.id}`,
-      };
-
-      row.getCell(8).font = {
-        color: { argb: "FF0369A1" },
-        underline: true,
+    if (templateRow.type === "TOTAL") {
+      excelRow.font = {
         bold: true,
+        color: { argb: "FF111827" },
       };
-
-      styleBodyRow(row);
-    });
-  }
-
-  [identitySheet, dupakSheet, evidenceSheet].forEach((sheet) => {
-    sheet.eachRow((row) => {
-      row.eachCell((cell) => {
-        cell.alignment = {
-          ...cell.alignment,
-          vertical: "middle",
-          wrapText: true,
-        };
-      });
-    });
+      excelRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFF1F5F9" },
+      };
+    }
   });
 
-  const rawBuffer = await workbook.xlsx.writeBuffer();
-  const excelBuffer = Buffer.isBuffer(rawBuffer)
-    ? rawBuffer
-    : Buffer.from(rawBuffer as ArrayBuffer);
+  worksheet.eachRow((row) => {
+    row.height = 24;
+  });
+
+  worksheet.getRow(1).height = 32;
+  worksheet.getRow(2).height = 28;
+  worksheet.getRow(3).height = 24;
+
+  const buffer = await workbook.xlsx.writeBuffer();
 
   const fileName = safeFileName(
     `DUPAK-${submission.lecturer.fullName}-${new Date()
@@ -586,7 +382,7 @@ export async function GET(
       .slice(0, 10)}.xlsx`,
   );
 
-  return new NextResponse(new Uint8Array(excelBuffer), {
+  return new NextResponse(new Uint8Array(buffer), {
     status: 200,
     headers: {
       "Content-Type":

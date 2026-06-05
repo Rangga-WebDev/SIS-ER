@@ -1,7 +1,5 @@
 /** @format */
 
-import { Download, Paperclip } from "lucide-react";
-import FilePreviewModal from "@/components/documents/FilePreviewModal";
 import {
   DUPAK_PERSONAL_FIELDS,
   DUPAK_TEMPLATE_ROWS,
@@ -15,9 +13,10 @@ export type DupakEvidencePreviewItem = {
   id: string;
   rowCode: string;
   rowLabel: string;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
+  evidenceUrl: string | null;
+  fileName: string | null;
+  fileSize: number | null;
+  mimeType: string | null;
   note: string | null;
   uploadedAt: Date | string;
 };
@@ -284,11 +283,11 @@ function EvidencePreviewCell({
     );
   }
 
-  if (!evidence) {
+  if (!evidence?.evidenceUrl) {
     return (
       <td className="border border-slate-200 p-3 text-center">
         <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-400">
-          Belum ada bukti
+          Belum ada link bukti
         </span>
       </td>
     );
@@ -297,19 +296,14 @@ function EvidencePreviewCell({
   return (
     <td className="border border-slate-200 p-3 align-top">
       <div className="min-w-[260px] rounded-2xl border border-slate-200 bg-white p-3">
-        <div className="flex items-start gap-2">
-          <Paperclip size={16} className="mt-0.5 shrink-0 text-slate-400" />
+        <div>
+          <p className="text-xs font-black text-slate-800">
+            Link Bukti Google Drive
+          </p>
 
-          <div className="min-w-0">
-            <p className="truncate text-xs font-black text-slate-800">
-              {evidence.fileName}
-            </p>
-
-            <p className="mt-1 text-[11px] font-bold text-slate-400">
-              {formatFileSize(evidence.fileSize)} •{" "}
-              {formatDateTime(evidence.uploadedAt)}
-            </p>
-          </div>
+          <p className="mt-1 text-[11px] font-bold text-slate-400">
+            {formatDateTime(evidence.uploadedAt)}
+          </p>
         </div>
 
         {evidence.note && (
@@ -318,26 +312,14 @@ function EvidencePreviewCell({
           </p>
         )}
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <FilePreviewModal
-            title={`Bukti ${rowLabel}`}
-            fileName={evidence.fileName}
-            mimeType={evidence.mimeType}
-            previewUrl={`/api/files/dupak-evidence/${evidence.id}`}
-            downloadUrl={`/api/files/dupak-evidence/${evidence.id}?download=1`}
-            buttonLabel="Preview"
-          />
-
-          <a
-            href={`/api/files/dupak-evidence/${evidence.id}?download=1`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700 transition hover:bg-slate-50"
-          >
-            <Download size={14} />
-            Download
-          </a>
-        </div>
+        <a
+          href={evidence.evidenceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs font-black text-slate-700 transition hover:bg-slate-50"
+        >
+          Buka Link Bukti
+        </a>
       </div>
     </td>
   );

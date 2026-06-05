@@ -330,10 +330,12 @@ model DupakEvidence {
   rowCode  String
   rowLabel String
 
-  fileName    String
-  fileSize    Int
-  mimeType    String
-  storagePath String
+  evidenceUrl String?
+
+  fileName    String?
+  fileSize    Int?
+  mimeType    String?
+  storagePath String?
 
   note String?
 

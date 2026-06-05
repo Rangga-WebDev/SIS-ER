@@ -69,6 +69,7 @@ export default async function AdminDupakDetailPage({
           id: true,
           rowCode: true,
           rowLabel: true,
+          evidenceUrl: true,
           fileName: true,
           fileSize: true,
           mimeType: true,
@@ -81,16 +82,18 @@ export default async function AdminDupakDetailPage({
 
   if (!submission) redirect("/admin/dupak");
 
-  const evidences = submission.evidences.map((evidence) => ({
-    id: evidence.id,
-    rowCode: evidence.rowCode,
-    rowLabel: evidence.rowLabel,
-    fileName: evidence.fileName,
-    fileSize: evidence.fileSize,
-    mimeType: evidence.mimeType,
-    note: evidence.note,
-    uploadedAt: evidence.uploadedAt,
-  }));
+  const evidences =
+    submission.evidences.map((evidence) => ({
+      id: evidence.id,
+      rowCode: evidence.rowCode,
+      rowLabel: evidence.rowLabel,
+      evidenceUrl: evidence.evidenceUrl ?? null,
+      fileName: evidence.fileName ?? null,
+      fileSize: evidence.fileSize ?? null,
+      mimeType: evidence.mimeType ?? null,
+      note: evidence.note,
+      uploadedAt: evidence.uploadedAt,
+    })) || [];
 
   return (
     <AppShell

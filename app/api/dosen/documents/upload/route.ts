@@ -5,7 +5,6 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
 import { notifyAdmins } from "@/lib/notifications";
-import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -26,11 +25,9 @@ function toNullableString(value: FormDataEntryValue | null) {
 
 function toNullableInt(value: FormDataEntryValue | null) {
   const text = String(value || "").trim();
-
   if (!text) return null;
 
   const parsed = Number.parseInt(text, 10);
-
   return Number.isNaN(parsed) ? null : parsed;
 }
 
@@ -40,6 +37,18 @@ function getMetadataItems(formData: FormData) {
     toNullableString(formData.get("metadataItem2")),
     toNullableString(formData.get("metadataItem3")),
   ].filter(Boolean) as string[];
+}
+
+function isGoogleDriveUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return (
+      url.hostname.includes("drive.google.com") ||
+      url.hostname.includes("docs.google.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(request: Request) {
@@ -61,275 +70,245 @@ export async function POST(request: Request) {
     );
   }
 
-  const limit = rateLimit({
-    key: `upload:${user.id}`,
-    limit: 20,
-    windowMs: 60_000,
-  });
+  try {
+    const formData = await request.formData();
 
-  if (!limit.allowed) {
-    return rateLimitResponse(
-      "Terlalu banyak upload dalam waktu singkat. Coba lagi sebentar.",
-    );
-  }
+    const requirementId = String(formData.get("requirementId") || "");
+    const academicYear = toNullableInt(formData.get("academicYear"));
+    const skpPredicate = toNullableString(formData.get("skpPredicate"));
+    const externalUrl = toNullableString(formData.get("externalUrl"));
+    const letterNumber = toNullableString(formData.get("letterNumber"));
+    const letterDateRaw = toNullableString(formData.get("letterDate"));
+    const file = formData.get("file");
 
-  const formData = await request.formData();
+    if (!requirementId) {
+      return NextResponse.json(
+        { message: "Jenis dokumen wajib dipilih." },
+        { status: 400 },
+      );
+    }
 
-  const requirementId = String(formData.get("requirementId") || "");
-  const academicYear = toNullableInt(formData.get("academicYear"));
-  const skpPredicate = toNullableString(formData.get("skpPredicate"));
-  const externalUrl = toNullableString(formData.get("externalUrl"));
-  const letterNumber = toNullableString(formData.get("letterNumber"));
-  const letterDateRaw = toNullableString(formData.get("letterDate"));
-  const file = formData.get("file");
-
-  if (!requirementId) {
-    return NextResponse.json(
-      { message: "Jenis dokumen wajib dipilih." },
-      { status: 400 },
-    );
-  }
-
-  const requirement = await prisma.documentRequirement.findUnique({
-    where: {
-      id: requirementId,
-    },
-    include: {
-      category: true,
-    },
-  });
-
-  if (!requirement) {
-    return NextResponse.json(
-      { message: "Jenis dokumen tidak ditemukan." },
-      { status: 404 },
-    );
-  }
-
-  const isMultiTextMetadata = isMultiTextMetadataRequirement(requirement.code);
-  const metadataItems = isMultiTextMetadata ? getMetadataItems(formData) : [];
-
-  const needsFile =
-    !isMultiTextMetadata &&
-    (requirement.inputType === "FILE" ||
-      requirement.inputType === "FILE_AND_URL");
-
-  const needsUrl =
-    !isMultiTextMetadata &&
-    (requirement.inputType === "URL" ||
-      requirement.inputType === "FILE_AND_URL" ||
-      requirement.requiresExternalUrl);
-
-  if (isMultiTextMetadata && metadataItems.length < 1) {
-    return NextResponse.json(
-      { message: "Minimal 1 data wajib diisi." },
-      { status: 400 },
-    );
-  }
-
-  if (isMultiTextMetadata && metadataItems.length > 3) {
-    return NextResponse.json(
-      { message: "Maksimal hanya 3 data yang dapat disimpan." },
-      { status: 400 },
-    );
-  }
-
-  if (requirement.isYearly && !academicYear) {
-    return NextResponse.json(
-      { message: "Tahun dokumen wajib dipilih." },
-      { status: 400 },
-    );
-  }
-
-  if (needsUrl && !externalUrl) {
-    return NextResponse.json(
-      { message: "Tautan wajib diisi." },
-      { status: 400 },
-    );
-  }
-
-  if (requirement.requiresLetterNumber && !letterNumber) {
-    return NextResponse.json(
-      { message: "Nomor surat wajib diisi." },
-      { status: 400 },
-    );
-  }
-
-  if (requirement.requiresLetterDate && !letterDateRaw) {
-    return NextResponse.json(
-      { message: "Tanggal surat wajib diisi." },
-      { status: 400 },
-    );
-  }
-
-  if (needsFile && !(file instanceof File)) {
-    return NextResponse.json(
-      { message: "File dokumen wajib diupload." },
-      { status: 400 },
-    );
-  }
-
-  const occurrenceKey = requirement.isYearly ? String(academicYear) : "default";
-
-  const existingSubmission = await prisma.documentSubmission.findUnique({
-    where: {
-      lecturerId_requirementId_occurrenceKey: {
-        lecturerId: lecturer.id,
-        requirementId,
-        occurrenceKey,
+    const requirement = await prisma.documentRequirement.findUnique({
+      where: {
+        id: requirementId,
       },
-    },
-    include: {
-      versions: {
-        orderBy: {
-          versionNumber: "desc",
-        },
-        take: 1,
+      include: {
+        category: true,
       },
-    },
-  });
+    });
 
-  const latestVersion =
-    existingSubmission?.versions[0]?.versionNumber ||
-    existingSubmission?.versionNumber ||
-    0;
+    if (!requirement) {
+      return NextResponse.json(
+        { message: "Jenis dokumen tidak ditemukan." },
+        { status: 404 },
+      );
+    }
 
-  const nextVersionNumber = latestVersion + 1;
+    const isMultiTextMetadata = isMultiTextMetadataRequirement(
+      requirement.code,
+    );
+    const metadataItems = isMultiTextMetadata ? getMetadataItems(formData) : [];
 
-  let fileName: string | null = null;
-  let fileSize: number | null = null;
-  let mimeType: string | null = null;
-  let storagePath: string | null = null;
+    const needsFile =
+      !isMultiTextMetadata &&
+      (requirement.inputType === "FILE" ||
+        requirement.inputType === "FILE_AND_URL");
 
-  if (file instanceof File) {
+    const needsUrl =
+      !isMultiTextMetadata &&
+      (requirement.inputType === "URL" ||
+        requirement.inputType === "FILE_AND_URL" ||
+        requirement.requiresExternalUrl);
+
+    if (isMultiTextMetadata && metadataItems.length < 1) {
+      return NextResponse.json(
+        { message: "Minimal 1 data wajib diisi." },
+        { status: 400 },
+      );
+    }
+
+    if (isMultiTextMetadata && metadataItems.length > 3) {
+      return NextResponse.json(
+        { message: "Maksimal hanya 3 data yang dapat disimpan." },
+        { status: 400 },
+      );
+    }
+
+    if (requirement.isYearly && !academicYear) {
+      return NextResponse.json(
+        { message: "Tahun dokumen wajib dipilih." },
+        { status: 400 },
+      );
+    }
+
+    if (needsUrl && !externalUrl) {
+      return NextResponse.json(
+        { message: "Tautan wajib diisi." },
+        { status: 400 },
+      );
+    }
+
+    if (requirement.requiresLetterNumber && !letterNumber) {
+      return NextResponse.json(
+        { message: "Nomor surat wajib diisi." },
+        { status: 400 },
+      );
+    }
+
+    if (requirement.requiresLetterDate && !letterDateRaw) {
+      return NextResponse.json(
+        { message: "Tanggal surat wajib diisi." },
+        { status: 400 },
+      );
+    }
+
     const maxBytes = requirement.maxSizeMb * 1024 * 1024;
 
-    if (file.size > maxBytes) {
+    const hasIncomingFile = file instanceof File && file.size > 0;
+    const incomingFileTooLarge = hasIncomingFile && file.size > maxBytes;
+    const canUploadIncomingFile = hasIncomingFile && file.size <= maxBytes;
+
+    if (needsFile && !canUploadIncomingFile && !externalUrl) {
       return NextResponse.json(
-        { message: `Ukuran file maksimal ${requirement.maxSizeMb} MB.` },
-        { status: 400 },
-      );
-    }
-
-    if (!requirement.allowedMimeTypes.includes(file.type)) {
-      return NextResponse.json(
-        { message: "Tipe file tidak diizinkan." },
-        { status: 400 },
-      );
-    }
-
-    fileName = safeFileName(file.name);
-    fileSize = file.size;
-    mimeType = file.type;
-
-    storagePath = [
-      "lecturers",
-      lecturer.id,
-      requirement.category.code,
-      requirement.code,
-      occurrenceKey,
-      `v${nextVersionNumber}`,
-      `${Date.now()}-${fileName}`,
-    ].join("/");
-
-    const buffer = Buffer.from(await file.arrayBuffer());
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(storageBucket)
-      .upload(storagePath, buffer, {
-        contentType: file.type,
-        upsert: true,
-      });
-
-    if (uploadError) {
-      return NextResponse.json(
-        { message: uploadError.message },
-        { status: 500 },
-      );
-    }
-  }
-
-  const parsedLetterDate = letterDateRaw ? new Date(letterDateRaw) : null;
-
-  const versionMetadata = {
-    categoryCode: requirement.category.code,
-    categoryName: requirement.category.name,
-    requirementCode: requirement.code,
-    requirementName: requirement.name,
-    inputType: requirement.inputType,
-    academicYear,
-    hasFile: Boolean(storagePath),
-    hasUrl: Boolean(externalUrl),
-    versionNumber: nextVersionNumber,
-    items: metadataItems,
-    metadataItems,
-  };
-
-  const submission = await prisma.$transaction(async (tx) => {
-    if (existingSubmission) {
-      const updated = await tx.documentSubmission.update({
-        where: {
-          id: existingSubmission.id,
+        {
+          message: `File maksimal ${requirement.maxSizeMb} MB. Jika file lebih besar, unggah ke Google Drive lalu masukkan link Drive.`,
         },
-        data: {
-          status: "PENDING",
-          adminNote: null,
-          fileName,
-          fileSize,
-          mimeType,
-          storagePath,
-          versionNumber: nextVersionNumber,
-          academicYear,
+        { status: 400 },
+      );
+    }
+
+    const usingDriveFallback =
+      needsFile && !canUploadIncomingFile && Boolean(externalUrl);
+
+    if (usingDriveFallback && externalUrl && !isGoogleDriveUrl(externalUrl)) {
+      return NextResponse.json(
+        {
+          message:
+            "Untuk pengganti file besar, tautan harus berasal dari Google Drive.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (canUploadIncomingFile && file instanceof File) {
+      if (!requirement.allowedMimeTypes.includes(file.type)) {
+        return NextResponse.json(
+          { message: "Tipe file tidak diizinkan." },
+          { status: 400 },
+        );
+      }
+    }
+
+    const occurrenceKey = requirement.isYearly
+      ? String(academicYear)
+      : "default";
+
+    const existingSubmission = await prisma.documentSubmission.findUnique({
+      where: {
+        lecturerId_requirementId_occurrenceKey: {
+          lecturerId: lecturer.id,
+          requirementId,
           occurrenceKey,
-          externalUrl,
-          letterNumber,
-          letterDate: parsedLetterDate,
-          skpPredicate,
-          metadata: versionMetadata,
         },
-      });
-
-      await tx.documentVersion.create({
-        data: {
-          submissionId: updated.id,
-          versionNumber: nextVersionNumber,
-          fileName,
-          fileSize,
-          mimeType,
-          storagePath,
-          academicYear,
-          externalUrl,
-          letterNumber,
-          letterDate: parsedLetterDate,
-          skpPredicate,
-          metadata: versionMetadata,
-          uploaderId: user.id,
-          uploaderEmail: user.email,
+      },
+      include: {
+        versions: {
+          orderBy: {
+            versionNumber: "desc",
+          },
+          take: 1,
         },
-      });
+      },
+    });
 
-      return updated;
+    const latestVersion =
+      existingSubmission?.versions[0]?.versionNumber ||
+      existingSubmission?.versionNumber ||
+      0;
+
+    const nextVersionNumber = latestVersion + 1;
+
+    let fileName: string | null = null;
+    let fileSize: number | null = null;
+    let mimeType: string | null = null;
+    let storagePath: string | null = null;
+
+    if (canUploadIncomingFile && file instanceof File) {
+      fileName = safeFileName(file.name);
+      fileSize = file.size;
+      mimeType = file.type;
+
+      storagePath = [
+        "lecturers",
+        lecturer.id,
+        requirement.category.code,
+        requirement.code,
+        occurrenceKey,
+        `v${nextVersionNumber}`,
+        `${Date.now()}-${fileName}`,
+      ].join("/");
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(storageBucket)
+        .upload(storagePath, buffer, {
+          contentType: file.type,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        return NextResponse.json(
+          { message: uploadError.message },
+          { status: 500 },
+        );
+      }
     }
 
-    return tx.documentSubmission.create({
-      data: {
-        lecturerId: lecturer.id,
-        requirementId,
-        status: "PENDING",
-        fileName,
-        fileSize,
-        mimeType,
-        storagePath,
-        versionNumber: nextVersionNumber,
-        academicYear,
-        occurrenceKey,
-        externalUrl,
-        letterNumber,
-        letterDate: parsedLetterDate,
-        skpPredicate,
-        metadata: versionMetadata,
-        versions: {
-          create: {
+    const parsedLetterDate = letterDateRaw ? new Date(letterDateRaw) : null;
+
+    const versionMetadata = {
+      categoryCode: requirement.category.code,
+      categoryName: requirement.category.name,
+      requirementCode: requirement.code,
+      requirementName: requirement.name,
+      inputType: requirement.inputType,
+      academicYear,
+      hasFile: Boolean(storagePath),
+      hasUrl: Boolean(externalUrl),
+      usedDriveFallback: Boolean(usingDriveFallback),
+      versionNumber: nextVersionNumber,
+      items: metadataItems,
+      metadataItems,
+    };
+
+    const submission = await prisma.$transaction(async (tx) => {
+      if (existingSubmission) {
+        const updated = await tx.documentSubmission.update({
+          where: {
+            id: existingSubmission.id,
+          },
+          data: {
+            status: "PENDING",
+            adminNote: null,
+            fileName,
+            fileSize,
+            mimeType,
+            storagePath,
+            versionNumber: nextVersionNumber,
+            academicYear,
+            occurrenceKey,
+            externalUrl,
+            letterNumber,
+            letterDate: parsedLetterDate,
+            skpPredicate,
+            metadata: versionMetadata,
+          },
+        });
+
+        await tx.documentVersion.create({
+          data: {
+            submissionId: updated.id,
             versionNumber: nextVersionNumber,
             fileName,
             fileSize,
@@ -344,18 +323,85 @@ export async function POST(request: Request) {
             uploaderId: user.id,
             uploaderEmail: user.email,
           },
+        });
+
+        return updated;
+      }
+
+      return tx.documentSubmission.create({
+        data: {
+          lecturerId: lecturer.id,
+          requirementId,
+          status: "PENDING",
+          fileName,
+          fileSize,
+          mimeType,
+          storagePath,
+          versionNumber: nextVersionNumber,
+          academicYear,
+          occurrenceKey,
+          externalUrl,
+          letterNumber,
+          letterDate: parsedLetterDate,
+          skpPredicate,
+          metadata: versionMetadata,
+          versions: {
+            create: {
+              versionNumber: nextVersionNumber,
+              fileName,
+              fileSize,
+              mimeType,
+              storagePath,
+              academicYear,
+              externalUrl,
+              letterNumber,
+              letterDate: parsedLetterDate,
+              skpPredicate,
+              metadata: versionMetadata,
+              uploaderId: user.id,
+              uploaderEmail: user.email,
+            },
+          },
+        },
+      });
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        actorId: user.id,
+        action: isMultiTextMetadata ? "METADATA_SAVE" : "DOCUMENT_SAVE",
+        entity: "DocumentSubmission",
+        entityId: submission.id,
+        metadata: {
+          requirementCode: requirement.code,
+          requirementName: requirement.name,
+          categoryCode: requirement.category.code,
+          categoryName: requirement.category.name,
+          academicYear,
+          hasFile: Boolean(storagePath),
+          hasUrl: Boolean(externalUrl),
+          usedDriveFallback: Boolean(usingDriveFallback),
+          versionNumber: nextVersionNumber,
+          items: metadataItems,
         },
       },
     });
-  });
 
-  await prisma.activityLog.create({
-    data: {
-      actorId: user.id,
-      action: isMultiTextMetadata ? "METADATA_SAVE" : "DOCUMENT_SAVE",
-      entity: "DocumentSubmission",
-      entityId: submission.id,
+    await notifyAdmins({
+      title:
+        nextVersionNumber > 1
+          ? isMultiTextMetadata
+            ? "Metadata Revisi Dikirim"
+            : "Dokumen Revisi Dikirim"
+          : isMultiTextMetadata
+            ? "Metadata Baru Masuk"
+            : "Dokumen Baru Masuk",
+      message: `${lecturer.fullName} mengirim ${requirement.name} versi ${nextVersionNumber}.`,
+      type: "DOCUMENT_UPLOADED",
+      href: `/admin/dosen/${lecturer.id}`,
       metadata: {
+        lecturerId: lecturer.id,
+        lecturerName: lecturer.fullName,
         requirementCode: requirement.code,
         requirementName: requirement.name,
         categoryCode: requirement.category.code,
@@ -363,48 +409,31 @@ export async function POST(request: Request) {
         academicYear,
         hasFile: Boolean(storagePath),
         hasUrl: Boolean(externalUrl),
+        usedDriveFallback: Boolean(usingDriveFallback),
         versionNumber: nextVersionNumber,
         items: metadataItems,
       },
-    },
-  });
+    });
 
-  await notifyAdmins({
-    title:
-      nextVersionNumber > 1
-        ? isMultiTextMetadata
-          ? "Metadata Revisi Dikirim"
-          : "Dokumen Revisi Dikirim"
-        : isMultiTextMetadata
-          ? "Metadata Baru Masuk"
-          : "Dokumen Baru Masuk",
-    message: `${lecturer.fullName} mengirim ${requirement.name} versi ${nextVersionNumber}.`,
-    type: "DOCUMENT_UPLOADED",
-    href: `/admin/dosen/${lecturer.id}`,
-    metadata: {
-      lecturerId: lecturer.id,
-      lecturerName: lecturer.fullName,
-      requirementCode: requirement.code,
-      requirementName: requirement.name,
-      categoryCode: requirement.category.code,
-      categoryName: requirement.category.name,
-      academicYear,
-      hasFile: Boolean(storagePath),
-      hasUrl: Boolean(externalUrl),
-      versionNumber: nextVersionNumber,
-      items: metadataItems,
-    },
-  });
+    return NextResponse.json({
+      message:
+        nextVersionNumber > 1
+          ? isMultiTextMetadata
+            ? `Data berhasil diperbarui sebagai versi ${nextVersionNumber}.`
+            : `Dokumen berhasil diperbarui sebagai versi ${nextVersionNumber}.`
+          : isMultiTextMetadata
+            ? "Data berhasil disimpan."
+            : usingDriveFallback
+              ? "Link Google Drive berhasil disimpan sebagai pengganti file besar."
+              : "Dokumen berhasil disimpan.",
+      submission,
+    });
+  } catch (error) {
+    console.error("DOCUMENT_UPLOAD_ERROR:", error);
 
-  return NextResponse.json({
-    message:
-      nextVersionNumber > 1
-        ? isMultiTextMetadata
-          ? `Data berhasil diperbarui sebagai versi ${nextVersionNumber}.`
-          : `Dokumen berhasil diperbarui sebagai versi ${nextVersionNumber}.`
-        : isMultiTextMetadata
-          ? "Data berhasil disimpan."
-          : "Dokumen berhasil disimpan.",
-    submission,
-  });
+    return NextResponse.json(
+      { message: "Gagal menyimpan dokumen atau metadata." },
+      { status: 500 },
+    );
+  }
 }

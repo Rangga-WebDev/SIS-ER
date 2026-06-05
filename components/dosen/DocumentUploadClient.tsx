@@ -78,6 +78,18 @@ function getMetadataLabels(code: string) {
   };
 }
 
+function isGoogleDriveUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return (
+      url.hostname.includes("drive.google.com") ||
+      url.hostname.includes("docs.google.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
 export default function DocumentUploadClient({ requirement }: Props) {
   const router = useRouter();
 
@@ -108,6 +120,8 @@ export default function DocumentUploadClient({ requirement }: Props) {
       requirement.inputType === "FILE_AND_URL" ||
       requirement.requiresExternalUrl);
 
+  const showDriveFallback = !isMultiTextMetadata && needsFile;
+
   const [file, setFile] = useState<File | null>(null);
   const [academicYear, setAcademicYear] = useState<number>(
     yearOptions[0] || currentYear,
@@ -127,6 +141,10 @@ export default function DocumentUploadClient({ requirement }: Props) {
     text: string;
   } | null>(null);
 
+  const maxBytes = requirement.maxSizeMb * 1024 * 1024;
+  const fileTooLarge = Boolean(file && file.size > maxBytes);
+  const acceptableFile = Boolean(file && file.size <= maxBytes);
+
   const resetForm = () => {
     setFile(null);
     setExternalUrl("");
@@ -137,6 +155,20 @@ export default function DocumentUploadClient({ requirement }: Props) {
       setMetadataItem1("");
       setMetadataItem2("");
       setMetadataItem3("");
+    }
+  };
+
+  const handleFileChange = (selectedFile: File | null) => {
+    setFile(selectedFile);
+    setMessage(null);
+
+    if (!selectedFile) return;
+
+    if (selectedFile.size > maxBytes) {
+      setMessage({
+        type: "error",
+        text: `File melebihi ${requirement.maxSizeMb} MB. Silakan unggah file ke Google Drive, lalu masukkan link Drive pada kolom alternatif.`,
+      });
     }
   };
 
@@ -159,10 +191,18 @@ export default function DocumentUploadClient({ requirement }: Props) {
       }
     }
 
-    if (needsFile && !file) {
+    if (needsFile && !acceptableFile && !externalUrl.trim()) {
       setMessage({
         type: "error",
-        text: "File dokumen wajib dipilih.",
+        text: `File maksimal ${requirement.maxSizeMb} MB. Jika file lebih besar, isi link Google Drive sebagai pengganti upload file.`,
+      });
+      return;
+    }
+
+    if (fileTooLarge && externalUrl.trim() && !isGoogleDriveUrl(externalUrl)) {
+      setMessage({
+        type: "error",
+        text: "Untuk file lebih dari 5 MB, link harus berasal dari Google Drive.",
       });
       return;
     }
@@ -203,7 +243,9 @@ export default function DocumentUploadClient({ requirement }: Props) {
 
     formData.append("requirementId", requirement.id);
 
-    if (file) formData.append("file", file);
+    if (file && file.size <= maxBytes) {
+      formData.append("file", file);
+    }
 
     if (requirement.isYearly) {
       formData.append("academicYear", String(academicYear));
@@ -239,7 +281,17 @@ export default function DocumentUploadClient({ requirement }: Props) {
         body: formData,
       });
 
-      const json = await response.json();
+      const text = await response.text();
+
+      let json: { message?: string } = {};
+
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {
+          message: text || "Server mengembalikan response tidak valid.",
+        };
+      }
 
       if (!response.ok) {
         setMessage({
@@ -284,7 +336,7 @@ export default function DocumentUploadClient({ requirement }: Props) {
           <p className="text-xs font-bold text-slate-400">
             {isMultiTextMetadata
               ? "Isi minimal 1 data"
-              : `Maksimal ${requirement.maxSizeMb} MB`}
+              : `Upload maksimal ${requirement.maxSizeMb} MB atau gunakan link Google Drive`}
           </p>
         </div>
       </div>
@@ -380,6 +432,27 @@ export default function DocumentUploadClient({ requirement }: Props) {
           </FieldGroup>
         )}
 
+        {showDriveFallback && !needsUrl && (
+          <FieldGroup
+            label="Link Google Drive jika file lebih dari 5 MB"
+            icon={<Link2 size={14} />}
+          >
+            <input
+              type="url"
+              value={externalUrl}
+              onChange={(event) => setExternalUrl(event.target.value)}
+              placeholder="https://drive.google.com/..."
+              className="input-industrial"
+            />
+
+            <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800">
+              Jika file lebih besar dari {requirement.maxSizeMb} MB, unggah file
+              ke Google Drive, atur akses agar dapat dilihat, lalu tempel link
+              Drive di sini.
+            </p>
+          </FieldGroup>
+        )}
+
         {!isMultiTextMetadata && requirement.requiresLetterNumber && (
           <FieldGroup label="Nomor Surat" icon={<FileText size={14} />}>
             <input
@@ -413,16 +486,25 @@ export default function DocumentUploadClient({ requirement }: Props) {
               </p>
 
               <p className="mt-1 text-xs font-semibold text-slate-400">
-                PDF, JPG, JPEG, PNG
+                PDF, JPG, JPEG, PNG. Maksimal {requirement.maxSizeMb} MB.
               </p>
 
               <input
                 type="file"
                 accept={mimeToAccept(requirement.allowedMimeTypes)}
-                onChange={(event) => setFile(event.target.files?.[0] || null)}
+                onChange={(event) =>
+                  handleFileChange(event.target.files?.[0] || null)
+                }
                 className="hidden"
               />
             </label>
+
+            {fileTooLarge && (
+              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold leading-5 text-red-700">
+                File terlalu besar dan tidak akan diupload langsung. Gunakan
+                link Google Drive sebagai pengganti.
+              </div>
+            )}
           </FieldGroup>
         )}
 

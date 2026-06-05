@@ -63,7 +63,7 @@ function formatDate(date?: Date | null) {
     day: "2-digit",
     month: "long",
     year: "numeric",
-  }).format(date);
+  }).format(new Date(date));
 }
 
 function formatDateTime(date?: Date | null) {
@@ -75,7 +75,7 @@ function formatDateTime(date?: Date | null) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(new Date(date));
 }
 
 function formatFileSize(size?: number | null) {
@@ -171,6 +171,9 @@ function getCategoryIcon(code: string) {
   if (code === "DOKUMEN_REKOMENDASI") return <FileText size={25} />;
   return <UserRound size={25} />;
 }
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function AdminDosenDetailPage({
   params,
@@ -289,28 +292,30 @@ export default async function AdminDosenDetailPage({
         </Link>
 
         <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-          <div className="grid gap-0 xl:grid-cols-[1.2fr_0.8fr]">
-            <div className="p-6">
+          <div className="grid min-w-0 gap-0 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="min-w-0 p-6">
               <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="flex items-start gap-4">
+                <div className="flex min-w-0 items-start gap-4">
                   <LecturerAvatar
                     lecturerId={lecturer.id}
                     name={lecturer.fullName}
                     size="lg"
                   />
 
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-700">
                       Profil Dosen
                     </p>
 
-                    <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950">
+                    <h2 className="mt-2 break-words text-3xl font-black tracking-tight text-slate-950">
                       {lecturer.fullName}
                     </h2>
 
-                    <p className="mt-2 flex items-center gap-2 text-sm font-bold text-slate-500">
-                      <Mail size={16} />
-                      {lecturer.user.email}
+                    <p className="mt-2 flex min-w-0 items-center gap-2 text-sm font-bold text-slate-500">
+                      <Mail size={16} className="shrink-0" />
+                      <span className="min-w-0 truncate">
+                        {lecturer.user.email}
+                      </span>
                     </p>
                   </div>
                 </div>
@@ -335,9 +340,9 @@ export default async function AdminDosenDetailPage({
               </div>
             </div>
 
-            <div className="border-t border-slate-100 bg-slate-950 p-6 text-white xl:border-l xl:border-t-0">
+            <div className="min-w-0 border-t border-slate-100 bg-slate-950 p-6 text-white xl:border-l xl:border-t-0">
               <div className="flex items-start justify-between gap-4">
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-bold text-slate-400">
                     Completion Rate
                   </p>
@@ -350,7 +355,7 @@ export default async function AdminDosenDetailPage({
                   </p>
                 </div>
 
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/10">
                   <ShieldCheck size={32} />
                 </div>
               </div>
@@ -380,6 +385,7 @@ export default async function AdminDosenDetailPage({
             desc="Requirement dokumen"
             tone="sky"
           />
+
           <MetricMini
             icon={<UploadCloud size={21} />}
             label="Terisi"
@@ -387,6 +393,7 @@ export default async function AdminDosenDetailPage({
             desc="Sudah dikirim dosen"
             tone="violet"
           />
+
           <MetricMini
             icon={<CheckCircle2 size={21} />}
             label="Valid"
@@ -394,6 +401,7 @@ export default async function AdminDosenDetailPage({
             desc="Diterima admin"
             tone="emerald"
           />
+
           <MetricMini
             icon={<RotateCcw size={21} />}
             label="Tindak Lanjut"
@@ -415,16 +423,16 @@ export default async function AdminDosenDetailPage({
             >
               <summary className="cursor-pointer list-none border-b border-slate-100 p-6 transition hover:bg-slate-50/80">
                 <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex items-start gap-4">
+                  <div className="flex min-w-0 items-start gap-4">
                     <div
                       className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${tone.icon}`}
                     >
                       {getCategoryIcon(category.code)}
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-3">
-                        <h2 className="text-2xl font-black text-slate-950">
+                        <h2 className="break-words text-2xl font-black text-slate-950">
                           {category.name}
                         </h2>
 
@@ -470,13 +478,13 @@ export default async function AdminDosenDetailPage({
                   return (
                     <article
                       key={requirement.id}
-                      className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50"
+                      className="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-slate-50"
                     >
                       <div className="border-b border-slate-200 bg-white p-5">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-3">
-                              <h3 className="text-lg font-black text-slate-950">
+                              <h3 className="break-words text-lg font-black text-slate-950">
                                 {requirement.name}
                               </h3>
 
@@ -510,7 +518,7 @@ export default async function AdminDosenDetailPage({
                             </p>
                           </div>
 
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-500">
+                          <div className="shrink-0 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-500">
                             {requirement.submissions.length} data
                           </div>
                         </div>
@@ -523,13 +531,13 @@ export default async function AdminDosenDetailPage({
                           requirement.submissions.map((submission) => (
                             <div
                               key={submission.id}
-                              className="overflow-hidden rounded-3xl border border-slate-200 bg-white"
+                              className="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white"
                             >
-                              <div className="grid gap-0 xl:grid-cols-[1fr_360px]">
-                                <div className="p-5">
+                              <div className="grid min-w-0 gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+                                <div className="min-w-0 p-5">
                                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                                    <div>
-                                      <p className="text-lg font-black text-slate-950">
+                                    <div className="min-w-0">
+                                      <p className="break-words text-lg font-black text-slate-950">
                                         {submission.academicYear
                                           ? `${requirement.name} ${submission.academicYear}`
                                           : requirement.name}
@@ -553,7 +561,7 @@ export default async function AdminDosenDetailPage({
                                     />
                                   ) : (
                                     <>
-                                      <div className="mt-5 grid gap-3 md:grid-cols-2">
+                                      <div className="mt-5 grid min-w-0 gap-3 md:grid-cols-2">
                                         <MetaCard
                                           icon={<FileText size={16} />}
                                           label="Nama File"
@@ -656,7 +664,7 @@ export default async function AdminDosenDetailPage({
                                   />
                                 </div>
 
-                                <div className="border-t border-slate-200 bg-slate-50 p-5 xl:border-l xl:border-t-0">
+                                <div className="min-w-0 border-t border-slate-200 bg-slate-50 p-5 xl:border-l xl:border-t-0">
                                   <VerifySubmissionForm
                                     submissionId={submission.id}
                                     currentStatus={
@@ -712,11 +720,13 @@ function LecturerStatusBox({
 
 function InfoCard({ label, value }: { label: string; value?: string | null }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <p className="text-xs font-black uppercase tracking-widest text-slate-400">
         {label}
       </p>
-      <p className="mt-2 font-bold text-slate-900">{value || "-"}</p>
+      <p className="mt-2 break-words font-bold text-slate-900">
+        {value || "-"}
+      </p>
     </div>
   );
 }
@@ -782,7 +792,7 @@ function MetaCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-slate-200 bg-slate-50 p-4 ${
+      className={`min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4 ${
         wide ? "md:col-span-2" : ""
       }`}
     >
@@ -791,7 +801,9 @@ function MetaCard({
         {label}
       </div>
 
-      <p className="break-words text-sm font-bold text-slate-700">{value}</p>
+      <p className="min-w-0 break-words text-sm font-bold text-slate-700">
+        {value}
+      </p>
     </div>
   );
 }
@@ -823,16 +835,20 @@ function MetadataItemsAdmin({
         Data Metadata
       </p>
 
-      <h4 className="mt-2 text-xl font-black text-slate-950">{title}</h4>
+      <h4 className="mt-2 break-words text-xl font-black text-slate-950">
+        {title}
+      </h4>
 
       <ol className="mt-4 grid gap-3">
         {items.map((item, index) => (
           <li
             key={`${item}-${index}`}
-            className="flex gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700"
+            className="flex min-w-0 gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700"
           >
-            <span className="font-black text-sky-700">{index + 1}.</span>
-            <span>{item}</span>
+            <span className="shrink-0 font-black text-sky-700">
+              {index + 1}.
+            </span>
+            <span className="min-w-0 break-words">{item}</span>
           </li>
         ))}
       </ol>
@@ -910,7 +926,7 @@ function VerificationTimeline({
               {log.note || "Tidak ada catatan."}
             </p>
 
-            <p className="mt-2 text-xs font-black text-slate-400">
+            <p className="mt-2 break-words text-xs font-black text-slate-400">
               Reviewer: {log.reviewerEmail || "-"}
             </p>
           </div>
