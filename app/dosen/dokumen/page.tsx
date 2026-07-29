@@ -176,7 +176,11 @@ function normalizeAllowedMimeTypes(value: unknown): string[] {
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export default async function DosenDokumenPage() {
+export default async function DosenDokumenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
@@ -185,6 +189,10 @@ export default async function DosenDokumenPage() {
   const lecturer = user.lecturerProfile;
 
   if (!lecturer) redirect("/login");
+
+  const { q } = await searchParams;
+  const query = String(q || "").trim();
+  const normalizedQuery = query.toLowerCase();
 
   const categories = await prisma.documentCategory.findMany({
     orderBy: {
@@ -257,6 +265,25 @@ export default async function DosenDokumenPage() {
   ).length;
 
   const globalProgress = percentage(uploadedRequirements, totalRequirements);
+
+  const filteredCategories = normalizedQuery
+    ? categories
+        .map((category) => ({
+          ...category,
+          requirements: category.requirements.filter((requirement) =>
+            [requirement.name, requirement.description || "", category.name]
+              .join(" ")
+              .toLowerCase()
+              .includes(normalizedQuery),
+          ),
+        }))
+        .filter((category) => category.requirements.length > 0)
+    : categories;
+
+  const filteredRequirementCount = filteredCategories.reduce(
+    (sum, category) => sum + category.requirements.length,
+    0,
+  );
 
   return (
     <AppShell
@@ -367,7 +394,35 @@ export default async function DosenDokumenPage() {
           />
         </section>
 
-        {categories.map((category, categoryIndex) => {
+        {query && (
+          <section className="flex flex-col gap-3 rounded-[2rem] border border-sky-200 bg-sky-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-bold leading-6 text-sky-800">
+              Menampilkan {filteredRequirementCount} dokumen untuk pencarian
+              {` "${query}"`}.
+            </p>
+
+            <a
+              href="/dosen/dokumen"
+              className="inline-flex items-center justify-center rounded-2xl bg-white px-4 py-2 text-sm font-black text-sky-700 shadow-sm ring-1 ring-sky-200 transition hover:bg-sky-100"
+            >
+              Hapus Pencarian
+            </a>
+          </section>
+        )}
+
+        {query && filteredCategories.length === 0 && (
+          <section className="rounded-[2rem] border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+            <h3 className="text-xl font-black text-slate-950">
+              Tidak Ada Hasil Pencarian
+            </h3>
+
+            <p className="mt-2 text-sm font-semibold text-slate-500">
+              Tidak ditemukan dokumen yang cocok dengan {`"${query}"`}.
+            </p>
+          </section>
+        )}
+
+        {filteredCategories.map((category, categoryIndex) => {
           const tone = getCategoryTone(category.code);
           const categoryProgress = getCategoryProgress(category.requirements);
 

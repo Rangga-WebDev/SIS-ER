@@ -3,7 +3,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import LogoutButton from "@/components/auth/LogoutButton";
 import NotificationCenter from "@/components/dashboard/NotificationCenter";
@@ -90,8 +91,33 @@ export default function AppShell({
   role,
 }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [query, setQuery] = useState(searchParams.get("q") || "");
 
   const navItems = role === "DOSEN" ? dosenNav : adminNav;
+
+  const getSearchTarget = () => {
+    if (role === "ADMIN") {
+      return pathname.startsWith("/admin/dupak")
+        ? "/admin/dupak"
+        : "/admin/dosen";
+    }
+
+    return "/dosen/dokumen";
+  };
+
+  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const target = getSearchTarget();
+    const trimmed = query.trim();
+
+    router.push(
+      trimmed ? `${target}?q=${encodeURIComponent(trimmed)}` : target,
+    );
+  };
 
   return (
     <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
@@ -259,12 +285,27 @@ export default function AppShell({
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex min-w-[260px] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500">
-                  <Search size={18} />
-                  <span className="text-sm font-bold">
-                    Search coming soon...
-                  </span>
-                </div>
+                <form
+                  onSubmit={handleSearch}
+                  className="flex min-w-[260px] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500 transition focus-within:border-sky-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-sky-100"
+                >
+                  <button
+                    type="submit"
+                    aria-label="Cari"
+                    className="text-slate-400 transition hover:text-sky-700"
+                  >
+                    <Search size={18} />
+                  </button>
+
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={
+                      role === "ADMIN" ? "Cari dosen..." : "Cari dokumen..."
+                    }
+                    className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
+                  />
+                </form>
 
                 <NotificationCenter />
 

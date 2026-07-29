@@ -14,6 +14,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import DupakPreview from "@/components/dupak/DupakPreview";
+import DupakAssessorFormClient from "@/components/admin/DupakAssessorFormClient";
 import type { DupakCreditData, DupakPersonalData } from "@/lib/dupak-template";
 
 function toObject<T>(value: unknown, fallback: T): T {
@@ -191,6 +192,11 @@ export default async function AdminDupakDetailPage({
             </div>
           </div>
         </section>
+
+        <DupakAssessorFormClient
+          dupakId={submission.id}
+          creditData={toObject<DupakCreditData>(submission.creditData, {})}
+        />
 
         <DupakPreview
           nomor={submission.nomor}

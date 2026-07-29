@@ -166,6 +166,14 @@ export default function LoginForm() {
                     {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
                   </button>
                 </div>
+                <div className="mt-2 text-right">
+                  <a
+                    href="/lupa-password"
+                    className="text-sm font-black text-sky-700 transition hover:text-sky-900 hover:underline"
+                  >
+                    Lupa password?
+                  </a>
+                </div>
               </div>
               {error && (
                 <div className="flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">

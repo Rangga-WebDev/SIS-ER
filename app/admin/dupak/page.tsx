@@ -12,6 +12,7 @@ import {
   Clock3,
   FileText,
   RotateCcw,
+  Search,
   UsersRound,
   XCircle,
 } from "lucide-react";
@@ -81,13 +82,34 @@ function formatDate(date?: Date | null) {
   }).format(new Date(date));
 }
 
-export default async function AdminDupakPage() {
+export default async function AdminDupakPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
   if (user.role !== "ADMIN") redirect("/login");
 
+  const { q } = await searchParams;
+  const query = String(q || "").trim();
+
   const lecturers = (await prisma.lecturerProfile.findMany({
+    where: query
+      ? {
+          OR: [
+            { fullName: { contains: query, mode: "insensitive" } },
+            { nidnOrNuptk: { contains: query, mode: "insensitive" } },
+            { studyProgram: { contains: query, mode: "insensitive" } },
+            {
+              user: {
+                email: { contains: query, mode: "insensitive" },
+              },
+            },
+          ],
+        }
+      : undefined,
     orderBy: {
       fullName: "asc",
     },
@@ -169,21 +191,43 @@ export default async function AdminDupakPage() {
 
         <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-100 p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
-                <ClipboardList size={24} />
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-700">
+                  <ClipboardList size={24} />
+                </div>
+
+                <div>
+                  <h2 className="text-xl font-black text-slate-950">
+                    Daftar Pengisian DUPAK Dosen
+                  </h2>
+
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    Admin dapat melihat progres dan membuka preview DUPAK setiap
+                    dosen.
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <h2 className="text-xl font-black text-slate-950">
-                  Daftar Pengisian DUPAK Dosen
-                </h2>
+              <form
+                method="GET"
+                className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-400 transition focus-within:border-sky-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-sky-100 lg:max-w-md"
+              >
+                <button
+                  type="submit"
+                  aria-label="Cari dosen"
+                  className="text-slate-400 transition hover:text-sky-700"
+                >
+                  <Search size={19} />
+                </button>
 
-                <p className="mt-1 text-sm font-semibold text-slate-500">
-                  Admin dapat melihat progres dan membuka preview DUPAK setiap
-                  dosen.
-                </p>
-              </div>
+                <input
+                  name="q"
+                  defaultValue={query}
+                  placeholder="Cari nama, NIDN/NUPTK, prodi, atau email..."
+                  className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
+                />
+              </form>
             </div>
           </div>
 

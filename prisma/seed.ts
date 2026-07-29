@@ -352,6 +352,46 @@ async function seedAdminIfConfigured() {
   console.log(`Admin aktif: ${email.toLowerCase()}`);
 }
 
+const assessorAdminEmails = [
+  "irwan.akib@unismuh.ac.id",
+  "ratna@unismuh.ac.id",
+  "agustan@unismuh.ac.id",
+  "akhmad.pide@unismuh.ac.id",
+  "syafiuddin_saleh@unismuh.ac.id",
+  "munirah@unismuh.ac.id",
+  "darwispanguriseng@unismuh.ac.id",
+  "nursalam.h@unismuh.ac.id",
+  "sukri.syamsuri@uin-alauddin.ac.id",
+];
+
+async function seedAssessorAdmins() {
+  for (const rawEmail of assessorAdminEmails) {
+    const email = rawEmail.toLowerCase();
+    const accountName = email.split("@")[0];
+    const password = `${accountName}1234!`;
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    await prisma.user.upsert({
+      where: {
+        email,
+      },
+      update: {
+        role: "ADMIN",
+        status: "ACTIVE",
+      },
+      create: {
+        email,
+        passwordHash,
+        role: "ADMIN",
+        status: "ACTIVE",
+      },
+    });
+
+    console.log(`Admin tim penilai aktif: ${email}`);
+  }
+}
+
 async function seedDocumentCategories() {
   for (const category of documentCategories) {
     const savedCategory = await prisma.documentCategory.upsert({
@@ -424,6 +464,7 @@ async function seedDocumentCategories() {
 
 async function main() {
   await seedAdminIfConfigured();
+  await seedAssessorAdmins();
   await seedDocumentCategories();
 }
 

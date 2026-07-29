@@ -38,6 +38,37 @@ function cleanJson(value: unknown) {
   return JSON.parse(JSON.stringify(value || {})) as Prisma.InputJsonValue;
 }
 
+function toCreditData(value: unknown): DupakCreditData {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as DupakCreditData;
+}
+
+function mergeCreditDataKeepingAssessor(
+  incoming: DupakCreditData,
+  existing: DupakCreditData,
+) {
+  const merged: DupakCreditData = {};
+
+  const rowCodes = new Set([
+    ...Object.keys(incoming || {}),
+    ...Object.keys(existing || {}),
+  ]);
+
+  for (const rowCode of rowCodes) {
+    merged[rowCode] = {
+      oldProposer: incoming[rowCode]?.oldProposer,
+      newProposer: incoming[rowCode]?.newProposer,
+      oldAssessor: existing[rowCode]?.oldAssessor,
+      newAssessor: existing[rowCode]?.newAssessor,
+    };
+  }
+
+  return merged;
+}
+
 function calculateCompletion({
   nomor,
   instansi,
@@ -113,7 +144,20 @@ export async function PATCH(request: Request) {
     const data = dupakSchema.parse(body);
 
     const personalData = data.personalData as DupakPersonalData;
-    const creditData = data.creditData as DupakCreditData;
+
+    const existingSubmission = await prisma.dupakSubmission.findUnique({
+      where: {
+        lecturerId: lecturer.id,
+      },
+      select: {
+        creditData: true,
+      },
+    });
+
+    const creditData = mergeCreditDataKeepingAssessor(
+      toCreditData(data.creditData),
+      toCreditData(existingSubmission?.creditData),
+    );
 
     const completionPercent = calculateCompletion({
       nomor: data.nomor,

@@ -382,7 +382,8 @@ export default function DupakFormClient({ initialData }: Props) {
           <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-6 text-sky-800">
             Pada setiap baris kegiatan, isi angka kredit dan unggah bukti
             dokumen pendukung. Bukti dapat berupa PDF, JPG, JPEG, atau PNG
-            maksimal 5 MB.
+            maksimal 5 MB. Kolom Tim Penilai hanya diisi oleh tim penilai
+            melalui portal admin.
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
@@ -497,18 +498,8 @@ export default function DupakFormClient({ initialData }: Props) {
                             }
                           />
                           <ReadOnlyCell value={getProposerTotal(value)} />
-                          <InputCell
-                            value={value?.oldAssessor || ""}
-                            onChange={(v) =>
-                              updateCredit(row.code, "oldAssessor", v)
-                            }
-                          />
-                          <InputCell
-                            value={value?.newAssessor || ""}
-                            onChange={(v) =>
-                              updateCredit(row.code, "newAssessor", v)
-                            }
-                          />
+                          <StaticCell value={value?.oldAssessor} />
+                          <StaticCell value={value?.newAssessor} />
                           <ReadOnlyCell value={getAssessorTotal(value)} />
                           <DupakEvidenceLinkCell
                             rowCode={row.code}
@@ -708,6 +699,14 @@ function ReadOnlyCell({ value }: { value: number }) {
   return (
     <td className="border border-slate-200 bg-slate-50 p-2 text-center font-black text-slate-800">
       {value || "-"}
+    </td>
+  );
+}
+
+function StaticCell({ value }: { value?: string }) {
+  return (
+    <td className="border border-slate-200 bg-slate-50 p-2 text-center font-bold text-slate-600">
+      {String(value || "").trim() || "-"}
     </td>
   );
 }

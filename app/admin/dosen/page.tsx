@@ -61,11 +61,18 @@ function formatDate(date?: Date | null) {
   }).format(new Date(date));
 }
 
-export default async function AdminDosenPage() {
+export default async function AdminDosenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
   if (user.role !== "ADMIN") redirect("/login");
+
+  const { q } = await searchParams;
+  const query = String(q || "").trim();
 
   const [lecturers, totalRequirements] = await Promise.all([
     prisma.lecturerProfile.findMany({
@@ -75,6 +82,20 @@ export default async function AdminDosenPage() {
             not: "SUSPENDED",
           },
         },
+        ...(query
+          ? {
+              OR: [
+                { fullName: { contains: query, mode: "insensitive" } },
+                { nidnOrNuptk: { contains: query, mode: "insensitive" } },
+                { studyProgram: { contains: query, mode: "insensitive" } },
+                {
+                  user: {
+                    email: { contains: query, mode: "insensitive" },
+                  },
+                },
+              ],
+            }
+          : {}),
       },
       orderBy: {
         createdAt: "desc",
@@ -246,10 +267,25 @@ export default async function AdminDosenPage() {
               </p>
             </div>
 
-            <div className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-400 lg:max-w-md">
-              <Search size={19} />
-              <span className="text-sm font-bold">Search coming soon...</span>
-            </div>
+            <form
+              method="GET"
+              className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-400 transition focus-within:border-sky-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-sky-100 lg:max-w-md"
+            >
+              <button
+                type="submit"
+                aria-label="Cari dosen"
+                className="text-slate-400 transition hover:text-sky-700"
+              >
+                <Search size={19} />
+              </button>
+
+              <input
+                name="q"
+                defaultValue={query}
+                placeholder="Cari nama, NIDN/NUPTK, prodi, atau email..."
+                className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
+              />
+            </form>
           </div>
         </section>
 
@@ -260,12 +296,13 @@ export default async function AdminDosenPage() {
             </div>
 
             <h3 className="mt-5 text-xl font-black text-slate-950">
-              Belum Ada Dosen Aktif
+              {query ? "Tidak Ada Hasil Pencarian" : "Belum Ada Dosen Aktif"}
             </h3>
 
             <p className="mt-2 text-sm font-semibold text-slate-500">
-              Dosen yang sudah registrasi dan berstatus aktif akan tampil di
-              halaman ini.
+              {query
+                ? `Tidak ditemukan dosen yang cocok dengan \"${query}\".`
+                : "Dosen yang sudah registrasi dan berstatus aktif akan tampil di halaman ini."}
             </p>
           </section>
         ) : (
