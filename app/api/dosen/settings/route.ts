@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
+import { validateFileContent } from "@/lib/file-validation";
 
 export const runtime = "nodejs";
 
@@ -160,10 +161,22 @@ export async function PATCH(request: Request) {
 
       const buffer = Buffer.from(await photo.arrayBuffer());
 
+      // Tipe foto ditentukan dari isi berkas, bukan MIME kiriman client.
+      const photoCheck = validateFileContent(buffer, ALLOWED_PHOTO_TYPES);
+
+      if (!photoCheck.valid || !photoCheck.detectedMime) {
+        return NextResponse.json(
+          {
+            message: "Isi file foto tidak valid. Gunakan JPG, PNG, atau WEBP.",
+          },
+          { status: 400 },
+        );
+      }
+
       const { error: uploadError } = await supabaseAdmin.storage
         .from(storageBucket)
         .upload(photoStoragePath, buffer, {
-          contentType: photo.type,
+          contentType: photoCheck.detectedMime,
           upsert: true,
         });
 
@@ -178,7 +191,7 @@ export async function PATCH(request: Request) {
 
       updateData.photoFileName = photoFileName;
       updateData.photoFileSize = photo.size;
-      updateData.photoMimeType = photo.type;
+      updateData.photoMimeType = photoCheck.detectedMime;
       updateData.photoStoragePath = photoStoragePath;
     }
 

@@ -14,8 +14,22 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import DupakPreview from "@/components/dupak/DupakPreview";
-import DupakAssessorFormClient from "@/components/admin/DupakAssessorFormClient";
-import type { DupakCreditData, DupakPersonalData } from "@/lib/dupak-template";
+import DupakVerifyForm from "@/components/admin/DupakVerifyForm";
+import PakAssignmentForm, {
+  type AssignmentItem,
+  type PakMemberOption,
+} from "@/components/admin/PakAssignmentForm";
+import BeritaAcaraForm, {
+  type MinuteContent,
+} from "@/components/admin/BeritaAcaraForm";
+import StatusTimeline from "@/components/workflow/StatusTimeline";
+import { getStatusLabel } from "@/lib/dupak-workflow";
+import type { DupakStatus } from "@/lib/app-types";
+import {
+  computeDupakSubtotals,
+  type DupakCreditData,
+  type DupakPersonalData,
+} from "@/lib/dupak-template";
 
 function toObject<T>(value: unknown, fallback: T): T {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -25,14 +39,18 @@ function toObject<T>(value: unknown, fallback: T): T {
   return value as T;
 }
 
-function statusLabel(status: string) {
-  if (status === "DRAFT") return "Draft";
-  if (status === "SUBMITTED") return "Dikirim";
-  if (status === "REVISION") return "Revisi";
-  if (status === "APPROVED") return "Disetujui";
-  if (status === "REJECTED") return "Ditolak";
-  return status;
-}
+const VERIFIABLE_STATUSES: DupakStatus[] = [
+  "SUBMITTED",
+  "DITOLAK_ADMIN",
+  "REJECTED",
+];
+
+const ASSIGNABLE_STATUSES: DupakStatus[] = [
+  "LOLOS_VERIFIKASI_ADMIN",
+  "DITUGASKAN_KE_TIM_PAK",
+  "SEDANG_DINILAI",
+  "DIKIRIM_ULANG_SETELAH_REVISI",
+];
 
 export default async function AdminDupakDetailPage({
   params,
@@ -78,10 +96,115 @@ export default async function AdminDupakDetailPage({
           uploadedAt: true,
         },
       },
+      pakAssignments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          pakUser: {
+            select: {
+              email: true,
+            },
+          },
+          assessment: {
+            select: {
+              isRatified: true,
+              decision: true,
+              totalScore: true,
+            },
+          },
+        },
+      },
+      examinationMinute: true,
+      statusHistories: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 12,
+      },
     },
   });
 
   if (!submission) redirect("/admin/dupak");
+
+  const pakMembersRaw = await prisma.user.findMany({
+    where: {
+      role: "TIM_PAK",
+      status: "ACTIVE",
+    },
+    select: {
+      id: true,
+      email: true,
+      _count: {
+        select: {
+          pakAssignments: {
+            where: {
+              status: "ACTIVE",
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      email: "asc",
+    },
+  });
+
+  const pakMembers: PakMemberOption[] = pakMembersRaw.map((member) => ({
+    id: member.id,
+    email: member.email,
+    activeCount: member._count.pakAssignments,
+  }));
+
+  const assignments: AssignmentItem[] = submission.pakAssignments.map(
+    (assignment) => ({
+      id: assignment.id,
+      pakUserId: assignment.pakUserId,
+      pakEmail: assignment.pakUser.email,
+      status: assignment.status,
+      deadline: assignment.deadline?.toISOString() || null,
+      assignmentNote: assignment.assignmentNote,
+      isRatified: assignment.assessment?.isRatified || false,
+    }),
+  );
+
+  const status = submission.status as DupakStatus;
+  const minute = submission.examinationMinute;
+  const minuteContent = toObject<MinuteContent>(minute?.content, {});
+
+  // Prefill unsur BA dari subtotal penilai; isian admin yang tersimpan menang.
+  const creditDataObject = toObject<DupakCreditData>(submission.creditData, {});
+  const subtotals = computeDupakSubtotals(creditDataObject);
+
+  const asText = (value?: number) => (value ? String(value) : "");
+
+  const unsurPendidikanTotal =
+    (subtotals["JUMLAH_UNSUR_PENDIDIKAN"]?.assessorTotal || 0) +
+    (subtotals["JUMLAH_UNSUR_PENGAJARAN"]?.assessorTotal || 0);
+
+  const minuteDefaults: MinuteContent = {
+    jabatanSaatIni: submission.lecturer.academicPosition,
+    unsurPendidikan: asText(Math.round(unsurPendidikanTotal * 100) / 100),
+    unsurPenelitian: asText(
+      subtotals["JUMLAH_UNSUR_PENELITIAN"]?.assessorTotal,
+    ),
+    unsurPengabdian: asText(
+      subtotals["JUMLAH_UNSUR_PENGABDIAN"]?.assessorTotal,
+    ),
+    unsurPenunjang: asText(subtotals["JUMLAH_UNSUR_PENUNJANG"]?.assessorTotal),
+    jumlahKeseluruhan: asText(
+      subtotals["JUMLAH_UTAMA_DAN_PENUNJANG"]?.assessorTotal,
+    ),
+    kumDicapai: asText(subtotals["JUMLAH_UTAMA_DAN_PENUNJANG"]?.assessorTotal),
+  };
+
+  const mergedMinuteContent: MinuteContent = { ...minuteDefaults };
+
+  for (const [key, value] of Object.entries(minuteContent)) {
+    if (String(value || "").trim()) {
+      mergedMinuteContent[key as keyof MinuteContent] = value;
+    }
+  }
 
   const evidences =
     submission.evidences.map((evidence) => ({
@@ -99,8 +222,8 @@ export default async function AdminDupakDetailPage({
   return (
     <AppShell
       role="ADMIN"
-      title="Preview DUPAK"
-      subtitle="Preview hasil pengisian DUPAK dosen beserta bukti dokumen per baris kegiatan."
+      title="Detail Pengajuan DUPAK"
+      subtitle="Verifikasi, penugasan Tim PAK, pemantauan penilaian, dan berita acara dalam satu halaman."
     >
       <div className="space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -109,7 +232,7 @@ export default async function AdminDupakDetailPage({
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
             <ArrowLeft size={18} />
-            Kembali ke Monitoring DUPAK
+            Kembali ke Pengajuan DUPAK
           </Link>
 
           <div className="flex flex-col gap-2 sm:flex-row">
@@ -162,9 +285,9 @@ export default async function AdminDupakDetailPage({
                   Status
                 </p>
 
-                <p className="mt-1 flex items-center gap-2 font-black">
-                  <CheckCircle2 size={17} />
-                  {statusLabel(submission.status)}
+                <p className="mt-1 flex items-center gap-2 text-sm font-black">
+                  <CheckCircle2 size={16} className="shrink-0" />
+                  {getStatusLabel(status)}
                 </p>
               </div>
 
@@ -193,9 +316,35 @@ export default async function AdminDupakDetailPage({
           </div>
         </section>
 
-        <DupakAssessorFormClient
+        <StatusTimeline
+          status={status}
+          histories={submission.statusHistories}
+        />
+
+        {VERIFIABLE_STATUSES.includes(status) && (
+          <DupakVerifyForm dupakId={submission.id} />
+        )}
+
+        <PakAssignmentForm
           dupakId={submission.id}
-          creditData={toObject<DupakCreditData>(submission.creditData, {})}
+          canAssign={ASSIGNABLE_STATUSES.includes(status)}
+          pakMembers={pakMembers}
+          assignments={assignments}
+        />
+
+        <BeritaAcaraForm
+          dupakId={submission.id}
+          status={status}
+          minuteStatus={
+            minute ? (minute.status === "FINAL" ? "FINAL" : "DRAFT") : "NONE"
+          }
+          initialNomor={minute?.nomor || ""}
+          initialDate={
+            minute?.examinationDate
+              ? minute.examinationDate.toISOString().slice(0, 10)
+              : ""
+          }
+          initialContent={mergedMinuteContent}
         />
 
         <DupakPreview

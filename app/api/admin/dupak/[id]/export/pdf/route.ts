@@ -5,6 +5,7 @@ import PDFDocument from "pdfkit";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  computeDupakSubtotals,
   DUPAK_PERSONAL_FIELDS,
   DUPAK_TEMPLATE_ROWS,
   getAssessorTotal,
@@ -204,6 +205,7 @@ function drawCreditRow({
   newAssessor,
   assessorTotal,
   evidenceText,
+  evidenceLink,
   isSection,
   isTotal,
 }: {
@@ -217,6 +219,7 @@ function drawCreditRow({
   newAssessor?: string;
   assessorTotal?: string;
   evidenceText?: string;
+  evidenceLink?: string;
   isSection?: boolean;
   isTotal?: boolean;
 }) {
@@ -278,13 +281,17 @@ function drawCreditRow({
       .lineWidth(0.4)
       .stroke();
 
+    const isEvidenceLinkCell = index === 7 && Boolean(evidenceLink);
+
     doc
       .font(isTotal || index === 0 ? "Helvetica-Bold" : "Helvetica")
       .fontSize(index === 0 ? 7.2 : 7)
-      .fillColor("#0f172a")
+      .fillColor(isEvidenceLinkCell ? "#0563c1" : "#0f172a")
       .text(value, x + 4, y + 6, {
         width: widths[index] - 8,
         align: index === 0 || index === 7 ? "left" : "center",
+        link: isEvidenceLinkCell ? evidenceLink : undefined,
+        underline: isEvidenceLinkCell,
       });
 
     x += widths[index];
@@ -367,6 +374,7 @@ export async function GET(
 
   const personalData = toObject<DupakPersonalData>(submission.personalData, {});
   const creditData = toObject<DupakCreditData>(submission.creditData, {});
+  const subtotals = computeDupakSubtotals(creditData);
 
   const evidenceMap = new Map<string, EvidenceItem>();
 
@@ -474,6 +482,31 @@ export async function GET(
       continue;
     }
 
+    if (row.type === "TOTAL") {
+      const subtotal = subtotals[row.code];
+
+      drawCreditRow({
+        doc,
+        label: row.label,
+        level: row.level,
+        oldProposer: String(subtotal?.oldProposer || ""),
+        newProposer: String(subtotal?.newProposer || ""),
+        proposerTotal: String(subtotal?.proposerTotal || ""),
+        oldAssessor: String(subtotal?.oldAssessor || ""),
+        newAssessor: String(subtotal?.newAssessor || ""),
+        assessorTotal: String(subtotal?.assessorTotal || ""),
+        evidenceText: "Tidak perlu bukti",
+        isTotal: true,
+      });
+
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 60) {
+        doc.addPage();
+        drawTableHeader(doc);
+      }
+
+      continue;
+    }
+
     drawCreditRow({
       doc,
       label: row.label,
@@ -484,15 +517,17 @@ export async function GET(
       oldAssessor: value?.oldAssessor,
       newAssessor: value?.newAssessor,
       assessorTotal: String(getAssessorTotal(value) || ""),
-      evidenceText:
-        row.type === "TOTAL"
-          ? "Tidak perlu bukti"
-          : evidence
+      evidenceText: evidence
+        ? evidence.evidenceUrl
+          ? `Buka Link Bukti (Google Drive)\n${formatDateTime(evidence.uploadedAt)}`
+          : evidence.fileName
             ? `${evidence.fileName}\n${formatFileSize(
                 evidence.fileSize,
               )} - ${formatDateTime(evidence.uploadedAt)}`
-            : "Belum ada bukti",
-      isTotal: row.type === "TOTAL",
+            : `Bukti tersimpan - ${formatDateTime(evidence.uploadedAt)}`
+        : "Belum ada bukti",
+      evidenceLink: evidence?.evidenceUrl || undefined,
+      isTotal: false,
     });
 
     if (doc.y > doc.page.height - doc.page.margins.bottom - 60) {

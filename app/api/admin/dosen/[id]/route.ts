@@ -59,6 +59,9 @@ export async function DELETE(request: NextRequest) {
     },
     data: {
       status: "SUSPENDED",
+      tokenVersion: {
+        increment: 1,
+      },
     },
   });
 

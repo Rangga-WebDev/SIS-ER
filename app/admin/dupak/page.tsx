@@ -2,9 +2,13 @@
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import type { Prisma } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
+import Pagination from "@/components/ui/Pagination";
+import { getPageCount, getPagination } from "@/lib/pagination";
+import { getStatusBadgeClass, getStatusLabel } from "@/lib/dupak-workflow";
 import {
   ArrowRight,
   CheckCircle2,
@@ -40,34 +44,12 @@ type LecturerWithDupak = {
 
 function statusLabel(status?: string | null) {
   if (!status) return "Belum Mengisi";
-  if (status === "DRAFT") return "Draft";
-  if (status === "SUBMITTED") return "Dikirim";
-  if (status === "REVISION") return "Revisi";
-  if (status === "APPROVED") return "Disetujui";
-  if (status === "REJECTED") return "Ditolak";
-  return status;
+  return getStatusLabel(status);
 }
 
 function statusStyle(status?: string | null) {
   if (!status) return "border-slate-200 bg-slate-50 text-slate-600";
-
-  if (status === "APPROVED") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (status === "SUBMITTED") {
-    return "border-sky-200 bg-sky-50 text-sky-700";
-  }
-
-  if (status === "REVISION") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (status === "REJECTED") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return getStatusBadgeClass(status);
 }
 
 function formatDate(date?: Date | null) {
@@ -85,70 +67,110 @@ function formatDate(date?: Date | null) {
 export default async function AdminDupakPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
   if (user.role !== "ADMIN") redirect("/login");
 
-  const { q } = await searchParams;
-  const query = String(q || "").trim();
+  const params = await searchParams;
+  const query = String(params.q || "").trim();
+  const { page, pageSize, skip } = getPagination(params);
 
-  const lecturers = (await prisma.lecturerProfile.findMany({
-    where: query
+  const lecturerWhere = (
+    query
       ? {
           OR: [
-            { fullName: { contains: query, mode: "insensitive" } },
-            { nidnOrNuptk: { contains: query, mode: "insensitive" } },
-            { studyProgram: { contains: query, mode: "insensitive" } },
+            { fullName: { contains: query, mode: "insensitive" as const } },
+            { nidnOrNuptk: { contains: query, mode: "insensitive" as const } },
+            { studyProgram: { contains: query, mode: "insensitive" as const } },
             {
               user: {
-                email: { contains: query, mode: "insensitive" },
+                email: { contains: query, mode: "insensitive" as const },
               },
             },
           ],
         }
-      : undefined,
-    orderBy: {
-      fullName: "asc",
-    },
-    include: {
-      user: {
-        select: {
-          email: true,
+      : {}
+  ) satisfies Prisma.LecturerProfileWhereInput;
+
+  const [lecturers, totalMatching, total, dupakGroups] = await Promise.all([
+    prisma.lecturerProfile.findMany({
+      where: lecturerWhere,
+      orderBy: {
+        fullName: "asc",
+      },
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        fullName: true,
+        nidnOrNuptk: true,
+        studyProgram: true,
+        academicPosition: true,
+        user: {
+          select: {
+            email: true,
+          },
+        },
+        dupakSubmissions: {
+          select: {
+            id: true,
+            status: true,
+            completionPercent: true,
+            currentStep: true,
+            submittedAt: true,
+            updatedAt: true,
+          },
         },
       },
-      dupakSubmissions: {
-        select: {
-          id: true,
-          status: true,
-          completionPercent: true,
-          currentStep: true,
-          submittedAt: true,
-          updatedAt: true,
-        },
+    }),
+    prisma.lecturerProfile.count({ where: lecturerWhere }),
+    prisma.lecturerProfile.count(),
+    prisma.dupakSubmission.groupBy({
+      by: ["status"],
+      _count: {
+        _all: true,
       },
-    },
-  })) as unknown as LecturerWithDupak[];
+    }),
+  ]);
 
-  const total = lecturers.length;
+  const pageCount = getPageCount(totalMatching, pageSize);
 
-  const filled = lecturers.filter(
-    (item) => item.dupakSubmissions !== null,
-  ).length;
+  if (totalMatching > 0 && page > pageCount) {
+    const redirectParams = new URLSearchParams({
+      page: String(pageCount),
+      pageSize: String(pageSize),
+    });
 
-  const submitted = lecturers.filter(
-    (item) => item.dupakSubmissions?.status === "SUBMITTED",
-  ).length;
+    if (query) redirectParams.set("q", query);
+    redirect(`/admin/dupak?${redirectParams.toString()}`);
+  }
 
-  const approved = lecturers.filter(
-    (item) => item.dupakSubmissions?.status === "APPROVED",
-  ).length;
+  const typedLecturers = lecturers as LecturerWithDupak[];
+  const statusCount = (statuses: string[]) =>
+    dupakGroups
+      .filter((group) => statuses.includes(group.status))
+      .reduce((sum, group) => sum + group._count._all, 0);
 
-  const revision = lecturers.filter(
-    (item) => item.dupakSubmissions?.status === "REVISION",
-  ).length;
+  const filled = dupakGroups.reduce((sum, group) => sum + group._count._all, 0);
+  const submitted = statusCount(["SUBMITTED"]);
+  const approved = statusCount([
+    "APPROVED",
+    "DITERIMA_TIM_PAK",
+    "PENILAIAN_DISAHKAN",
+    "BERITA_ACARA_DRAFT",
+    "BERITA_ACARA_DISAHKAN",
+    "PEMERIKSAAN_INTEGRITAS",
+    "PEMERIKSAAN_SENAT",
+    "SELESAI",
+  ]);
+  const revision = statusCount([
+    "REVISION",
+    "PERLU_PERBAIKAN_ADMIN",
+    "PERLU_REVISI_TIM_PAK",
+  ]);
 
   return (
     <AppShell
@@ -227,6 +249,7 @@ export default async function AdminDupakPage({
                   placeholder="Cari nama, NIDN/NUPTK, prodi, atau email..."
                   className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
                 />
+                <input type="hidden" name="pageSize" value={pageSize} />
               </form>
             </div>
           </div>
@@ -245,7 +268,7 @@ export default async function AdminDupakPage({
               </thead>
 
               <tbody>
-                {lecturers.map((lecturer) => {
+                {typedLecturers.map((lecturer) => {
                   const dupak = lecturer.dupakSubmissions;
                   const progress = dupak?.completionPercent ?? 0;
 
@@ -350,6 +373,14 @@ export default async function AdminDupakPage({
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            pathname="/admin/dupak"
+            page={page}
+            pageSize={pageSize}
+            totalItems={totalMatching}
+            query={{ q: query || undefined }}
+          />
         </section>
       </div>
     </AppShell>

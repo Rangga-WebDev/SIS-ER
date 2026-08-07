@@ -10,13 +10,9 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
-  Eye,
-  EyeOff,
   IdCard,
   Loader2,
-  LockKeyhole,
   Mail,
-  ShieldCheck,
 } from "lucide-react";
 
 export default function ForgotPasswordForm() {
@@ -24,9 +20,6 @@ export default function ForgotPasswordForm() {
 
   const [email, setEmail] = useState("");
   const [nidnOrNuptk, setNidnOrNuptk] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -46,8 +39,6 @@ export default function ForgotPasswordForm() {
         body: JSON.stringify({
           email,
           nidnOrNuptk,
-          newPassword,
-          confirmPassword,
         }),
       });
 
@@ -58,11 +49,7 @@ export default function ForgotPasswordForm() {
         return;
       }
 
-      setSuccess(result.message || "Password berhasil direset.");
-
-      setTimeout(() => {
-        router.push("/login");
-      }, 2000);
+      setSuccess(result.message || "Permintaan reset berhasil dikirim.");
     } catch {
       setError("Tidak dapat terhubung ke server.");
     } finally {
@@ -95,15 +82,16 @@ export default function ForgotPasswordForm() {
             Lupa Password
           </p>
           <h1 className="mt-1 text-3xl font-black tracking-tight text-slate-950">
-            Reset Password Akun
+            Ajukan Reset Password
           </h1>
         </div>
       </div>
 
       <p className="mt-5 leading-7 text-slate-600">
-        Verifikasi identitas Anda menggunakan email dan NIDN/NUPTK yang
-        terdaftar, lalu buat password baru. Khusus akun admin, silakan hubungi
-        pengelola sistem.
+        Masukkan email dan NIDN/NUPTK yang terdaftar. Demi keamanan, password
+        tidak dapat diganti langsung dari halaman ini. Admin Tim PAK akan
+        memverifikasi identitas Anda dan menyampaikan password sementara melalui
+        kontak resmi.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -145,53 +133,6 @@ export default function ForgotPasswordForm() {
           </div>
         </div>
 
-        <div>
-          <label className="mb-2 block font-black text-slate-800">
-            Password Baru
-          </label>
-          <div className="relative">
-            <LockKeyhole
-              size={20}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type={showPassword ? "text" : "password"}
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Minimal 8 karakter, ada huruf besar, kecil, dan angka"
-              className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-12 pr-14 font-semibold text-slate-800 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-              required
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-sky-700"
-            >
-              {showPassword ? <EyeOff size={21} /> : <Eye size={21} />}
-            </button>
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-2 block font-black text-slate-800">
-            Konfirmasi Password Baru
-          </label>
-          <div className="relative">
-            <ShieldCheck
-              size={20}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-            <input
-              type={showPassword ? "text" : "password"}
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="Ulangi password baru"
-              className="w-full rounded-2xl border border-slate-200 bg-white py-4 pl-12 pr-4 font-semibold text-slate-800 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100"
-              required
-            />
-          </div>
-        </div>
-
         {error && (
           <div className="flex gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
             <AlertCircle size={22} />
@@ -202,9 +143,7 @@ export default function ForgotPasswordForm() {
         {success && (
           <div className="flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-700">
             <CheckCircle2 size={22} />
-            <p className="text-sm font-semibold leading-6">
-              {success} Mengalihkan ke halaman login...
-            </p>
+            <p className="text-sm font-semibold leading-6">{success}</p>
           </div>
         )}
 
@@ -220,7 +159,7 @@ export default function ForgotPasswordForm() {
             </>
           ) : (
             <>
-              Reset Password
+              Kirim Permintaan
               <ArrowRight size={20} />
             </>
           )}

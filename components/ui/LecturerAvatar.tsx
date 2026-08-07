@@ -3,6 +3,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { UserRound } from "lucide-react";
 
 export default function LecturerAvatar({
@@ -42,13 +43,15 @@ export default function LecturerAvatar({
 
   return (
     <div
-      className={`overflow-hidden border border-slate-200 bg-slate-100 shadow-sm ${sizeClass}`}
+      className={`relative overflow-hidden border border-slate-200 bg-slate-100 shadow-sm ${sizeClass}`}
     >
-      {}
-      <img
+      <Image
         src={`/api/files/profile-photo/${lecturerId}`}
         alt={`Foto ${name}`}
-        className="h-full w-full object-cover"
+        fill
+        unoptimized
+        sizes="112px"
+        className="object-cover"
         onError={() => setError(true)}
       />
     </div>

@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
 import { notifyAdmins } from "@/lib/notifications";
+import { validateFileContent } from "@/lib/file-validation";
 
 export const runtime = "nodejs";
 
@@ -236,7 +237,23 @@ export async function POST(request: Request) {
     if (canUploadIncomingFile && file instanceof File) {
       fileName = safeFileName(file.name);
       fileSize = file.size;
-      mimeType = file.type;
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+
+      // Tipe file ditentukan dari isi berkas, bukan MIME kiriman client.
+      const contentCheck = validateFileContent(
+        buffer,
+        requirement.allowedMimeTypes,
+      );
+
+      if (!contentCheck.valid) {
+        return NextResponse.json(
+          { message: "Isi file tidak sesuai dengan tipe yang diizinkan." },
+          { status: 400 },
+        );
+      }
+
+      mimeType = contentCheck.detectedMime;
 
       storagePath = [
         "lecturers",
@@ -248,12 +265,10 @@ export async function POST(request: Request) {
         `${Date.now()}-${fileName}`,
       ].join("/");
 
-      const buffer = Buffer.from(await file.arrayBuffer());
-
       const { error: uploadError } = await supabaseAdmin.storage
         .from(storageBucket)
         .upload(storagePath, buffer, {
-          contentType: file.type,
+          contentType: contentCheck.detectedMime || "application/octet-stream",
           upsert: true,
         });
 

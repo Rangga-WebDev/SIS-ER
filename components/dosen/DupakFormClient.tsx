@@ -18,6 +18,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import {
+  computeDupakSubtotals,
   DUPAK_PERSONAL_FIELDS,
   DUPAK_TEMPLATE_ROWS,
   getAssessorTotal,
@@ -45,6 +46,7 @@ type InitialDupak = {
 
 type Props = {
   initialData: InitialDupak;
+  readOnly?: boolean;
 };
 
 function formatFileSize(size?: number | null) {
@@ -64,7 +66,10 @@ function formatDateTime(date?: string | null) {
   }).format(new Date(date));
 }
 
-export default function DupakFormClient({ initialData }: Props) {
+export default function DupakFormClient({
+  initialData,
+  readOnly = false,
+}: Props) {
   const router = useRouter();
 
   const [step, setStep] = useState(initialData.currentStep || 1);
@@ -83,6 +88,11 @@ export default function DupakFormClient({ initialData }: Props) {
   const inputRows = useMemo(
     () => DUPAK_TEMPLATE_ROWS.filter((row) => row.type === "ITEM"),
     [],
+  );
+
+  const subtotals = useMemo(
+    () => computeDupakSubtotals(form.creditData),
+    [form.creditData],
   );
 
   const evidenceMap = useMemo(() => {
@@ -172,6 +182,14 @@ export default function DupakFormClient({ initialData }: Props) {
   };
 
   const save = async (action: "SAVE" | "SUBMIT") => {
+    if (readOnly) {
+      setMessage({
+        type: "error",
+        text: "Pengajuan sedang diproses dan terkunci.",
+      });
+      return;
+    }
+
     setMessage(null);
     setSaving(true);
 
@@ -472,17 +490,35 @@ export default function DupakFormClient({ initialData }: Props) {
                       </td>
 
                       {row.type === "TOTAL" ? (
-                        <>
-                          <ReadOnlyCell value={getProposerTotal(value)} />
-                          <ReadOnlyCell value={0} />
-                          <ReadOnlyCell value={getProposerTotal(value)} />
-                          <ReadOnlyCell value={getAssessorTotal(value)} />
-                          <ReadOnlyCell value={0} />
-                          <ReadOnlyCell value={getAssessorTotal(value)} />
-                          <td className="border border-slate-200 p-3 text-center text-xs font-bold text-slate-400">
-                            Tidak perlu bukti
-                          </td>
-                        </>
+                        (() => {
+                          const subtotal = subtotals[row.code];
+
+                          return (
+                            <>
+                              <ReadOnlyCell
+                                value={subtotal?.oldProposer || 0}
+                              />
+                              <ReadOnlyCell
+                                value={subtotal?.newProposer || 0}
+                              />
+                              <ReadOnlyCell
+                                value={subtotal?.proposerTotal || 0}
+                              />
+                              <ReadOnlyCell
+                                value={subtotal?.oldAssessor || 0}
+                              />
+                              <ReadOnlyCell
+                                value={subtotal?.newAssessor || 0}
+                              />
+                              <ReadOnlyCell
+                                value={subtotal?.assessorTotal || 0}
+                              />
+                              <td className="border border-slate-200 p-3 text-center text-xs font-bold text-slate-400">
+                                Tidak perlu bukti
+                              </td>
+                            </>
+                          );
+                        })()
                       ) : (
                         <>
                           <InputCell
@@ -560,7 +596,7 @@ export default function DupakFormClient({ initialData }: Props) {
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || readOnly}
             onClick={() => save("SAVE")}
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
           >
@@ -574,7 +610,7 @@ export default function DupakFormClient({ initialData }: Props) {
 
           <button
             type="button"
-            disabled={saving}
+            disabled={saving || readOnly}
             onClick={() => save("SUBMIT")}
             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-700 px-5 py-3 text-sm font-black text-white transition hover:bg-sky-800 disabled:opacity-60"
           >

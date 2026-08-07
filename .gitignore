@@ -17,6 +17,9 @@ dist
 .env.production.local
 .env.production
 
+# backup database (berisi PII & password hash)
+backups/
+
 # prisma
 prisma/dev.db
 prisma/*.db
@@ -27,6 +30,13 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# typescript
+*.tsbuildinfo
+
+# tests
+coverage/
+npm-audit*.json
 
 # system
 .DS_Store

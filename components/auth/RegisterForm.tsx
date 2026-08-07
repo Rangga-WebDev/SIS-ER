@@ -226,13 +226,17 @@ export default function RegisterForm() {
       ? "Password wajib diisi."
       : form.password.length < 8
         ? "Password minimal 8 karakter."
-        : passwordScore < 3
-          ? "Password terlalu lemah."
-          : form.password !== form.confirmPassword
-            ? "Konfirmasi password tidak sama."
-            : !agree
-              ? "Anda harus menyetujui pernyataan penggunaan sistem."
-              : "";
+        : !/[A-Z]/.test(form.password) ||
+            !/[a-z]/.test(form.password) ||
+            !/[0-9]/.test(form.password)
+          ? "Password harus memiliki huruf besar, huruf kecil, dan angka."
+          : passwordScore < 3
+            ? "Password terlalu lemah."
+            : form.password !== form.confirmPassword
+              ? "Konfirmasi password tidak sama."
+              : !agree
+                ? "Anda harus menyetujui pernyataan penggunaan sistem."
+                : "";
 
   const validate4 = () =>
     !photo

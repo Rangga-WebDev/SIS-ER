@@ -12,6 +12,7 @@ import {
   Save,
 } from "lucide-react";
 import {
+  computeDupakSubtotals,
   DUPAK_TEMPLATE_ROWS,
   getAssessorTotal,
   getNumberValue,
@@ -27,13 +28,19 @@ type AssessorValue = {
 type Props = {
   dupakId: string;
   creditData: DupakCreditData;
+  endpoint?: string;
+  readOnly?: boolean;
 };
 
 export default function DupakAssessorFormClient({
   dupakId,
   creditData,
+  endpoint,
+  readOnly = false,
 }: Props) {
   const router = useRouter();
+
+  const apiEndpoint = endpoint || `/api/admin/dupak/${dupakId}/assessor`;
 
   const itemRows = useMemo(
     () => DUPAK_TEMPLATE_ROWS.filter((row) => row.type === "ITEM"),
@@ -69,6 +76,22 @@ export default function DupakAssessorFormClient({
     );
   }).length;
 
+  // Subtotal live: nilai pengusul dari data tersimpan + nilai penilai dari input.
+  const subtotals = useMemo(() => {
+    const merged: DupakCreditData = {};
+
+    for (const row of itemRows) {
+      merged[row.code] = {
+        oldProposer: creditData?.[row.code]?.oldProposer,
+        newProposer: creditData?.[row.code]?.newProposer,
+        oldAssessor: values[row.code]?.oldAssessor,
+        newAssessor: values[row.code]?.newAssessor,
+      };
+    }
+
+    return computeDupakSubtotals(merged);
+  }, [creditData, itemRows, values]);
+
   const updateValue = (
     code: string,
     key: keyof AssessorValue,
@@ -88,7 +111,7 @@ export default function DupakAssessorFormClient({
     setMessage(null);
 
     try {
-      const response = await fetch(`/api/admin/dupak/${dupakId}/assessor`, {
+      const response = await fetch(apiEndpoint, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -145,7 +168,7 @@ export default function DupakAssessorFormClient({
 
         <button
           type="button"
-          disabled={saving}
+          disabled={saving || readOnly}
           onClick={save}
           className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-700 px-5 py-3 text-sm font-black text-white transition hover:bg-sky-800 disabled:opacity-60"
         >
@@ -154,7 +177,7 @@ export default function DupakAssessorFormClient({
           ) : (
             <Save size={18} />
           )}
-          Simpan Penilaian
+          {readOnly ? "Penilaian Terkunci" : "Simpan Penilaian"}
         </button>
       </div>
 
@@ -223,14 +246,31 @@ export default function DupakAssessorFormClient({
               }
 
               if (row.type !== "ITEM") {
+                const subtotal = subtotals[row.code];
+
                 return (
                   <tr key={row.code} className="bg-slate-100">
                     <td
-                      colSpan={5}
                       className="border border-slate-200 p-3 font-black text-slate-950"
                       style={{ paddingLeft: `${12 + row.level * 18}px` }}
                     >
                       {row.label}
+                    </td>
+
+                    <td className="border border-slate-200 p-2 text-center font-black text-slate-900">
+                      {subtotal?.proposerTotal || "-"}
+                    </td>
+
+                    <td className="border border-slate-200 p-2 text-center font-black text-slate-900">
+                      {subtotal?.oldAssessor || "-"}
+                    </td>
+
+                    <td className="border border-slate-200 p-2 text-center font-black text-slate-900">
+                      {subtotal?.newAssessor || "-"}
+                    </td>
+
+                    <td className="border border-slate-200 p-2 text-center font-black text-slate-900">
+                      {subtotal?.assessorTotal || "-"}
                     </td>
                   </tr>
                 );
@@ -255,11 +295,12 @@ export default function DupakAssessorFormClient({
                   <td className="border border-slate-200 p-2">
                     <input
                       value={value?.oldAssessor || ""}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateValue(row.code, "oldAssessor", event.target.value)
                       }
                       inputMode="decimal"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-bold text-slate-700 outline-none focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-bold text-slate-700 outline-none focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:opacity-60"
                       placeholder="0"
                     />
                   </td>
@@ -267,11 +308,12 @@ export default function DupakAssessorFormClient({
                   <td className="border border-slate-200 p-2">
                     <input
                       value={value?.newAssessor || ""}
+                      disabled={readOnly}
                       onChange={(event) =>
                         updateValue(row.code, "newAssessor", event.target.value)
                       }
                       inputMode="decimal"
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-bold text-slate-700 outline-none focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-bold text-slate-700 outline-none focus:border-sky-400 focus:bg-white focus:ring-4 focus:ring-sky-100 disabled:opacity-60"
                       placeholder="0"
                     />
                   </td>

@@ -1,6 +1,7 @@
 /** @format */
 
 import {
+  computeDupakSubtotals,
   DUPAK_PERSONAL_FIELDS,
   DUPAK_TEMPLATE_ROWS,
   getAssessorTotal,
@@ -78,6 +79,8 @@ export default function DupakPreview({
       evidenceMap.set(evidence.rowCode, evidence);
     }
   }
+
+  const subtotals = computeDupakSubtotals(creditData);
 
   return (
     <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
@@ -212,12 +215,55 @@ export default function DupakPreview({
                     {row.label}
                   </td>
 
-                  <Cell value={value?.oldProposer} />
-                  <Cell value={value?.newProposer} />
-                  <Cell value={String(getProposerTotal(value) || "")} bold />
-                  <Cell value={value?.oldAssessor} />
-                  <Cell value={value?.newAssessor} />
-                  <Cell value={String(getAssessorTotal(value) || "")} bold />
+                  {row.type === "TOTAL" ? (
+                    (() => {
+                      const subtotal = subtotals[row.code];
+
+                      return (
+                        <>
+                          <Cell
+                            value={String(subtotal?.oldProposer || "")}
+                            bold
+                          />
+                          <Cell
+                            value={String(subtotal?.newProposer || "")}
+                            bold
+                          />
+                          <Cell
+                            value={String(subtotal?.proposerTotal || "")}
+                            bold
+                          />
+                          <Cell
+                            value={String(subtotal?.oldAssessor || "")}
+                            bold
+                          />
+                          <Cell
+                            value={String(subtotal?.newAssessor || "")}
+                            bold
+                          />
+                          <Cell
+                            value={String(subtotal?.assessorTotal || "")}
+                            bold
+                          />
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <>
+                      <Cell value={value?.oldProposer} />
+                      <Cell value={value?.newProposer} />
+                      <Cell
+                        value={String(getProposerTotal(value) || "")}
+                        bold
+                      />
+                      <Cell value={value?.oldAssessor} />
+                      <Cell value={value?.newAssessor} />
+                      <Cell
+                        value={String(getAssessorTotal(value) || "")}
+                        bold
+                      />
+                    </>
+                  )}
 
                   {showEvidenceColumn && (
                     <EvidencePreviewCell

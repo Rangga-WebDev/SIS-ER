@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import type { Prisma } from "@prisma/client";
 import {
   ArrowRight,
   CheckCircle2,
@@ -18,6 +19,8 @@ import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import LecturerAvatar from "@/components/ui/LecturerAvatar";
 import RemoveLecturerButton from "@/components/admin/RemoveLecturerButton";
+import Pagination from "@/components/ui/Pagination";
+import { getPageCount, getPagination } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -64,42 +67,63 @@ function formatDate(date?: Date | null) {
 export default async function AdminDosenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; pageSize?: string }>;
 }) {
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
   if (user.role !== "ADMIN") redirect("/login");
 
-  const { q } = await searchParams;
-  const query = String(q || "").trim();
+  const params = await searchParams;
+  const query = String(params.q || "").trim();
+  const { page, pageSize, skip } = getPagination(params);
 
-  const [lecturers, totalRequirements] = await Promise.all([
-    prisma.lecturerProfile.findMany({
-      where: {
-        user: {
-          status: {
-            not: "SUSPENDED",
-          },
-        },
-        ...(query
-          ? {
-              OR: [
-                { fullName: { contains: query, mode: "insensitive" } },
-                { nidnOrNuptk: { contains: query, mode: "insensitive" } },
-                { studyProgram: { contains: query, mode: "insensitive" } },
-                {
-                  user: {
-                    email: { contains: query, mode: "insensitive" },
-                  },
-                },
-              ],
-            }
-          : {}),
+  const activeLecturerWhere = {
+    user: {
+      status: {
+        not: "SUSPENDED",
       },
+    },
+  } satisfies Prisma.LecturerProfileWhereInput;
+
+  const lecturerWhere = {
+    ...activeLecturerWhere,
+    ...(query
+      ? {
+          OR: [
+            { fullName: { contains: query, mode: "insensitive" as const } },
+            {
+              nidnOrNuptk: { contains: query, mode: "insensitive" as const },
+            },
+            {
+              studyProgram: { contains: query, mode: "insensitive" as const },
+            },
+            {
+              user: {
+                email: { contains: query, mode: "insensitive" as const },
+              },
+            },
+          ],
+        }
+      : {}),
+  } satisfies Prisma.LecturerProfileWhereInput;
+
+  const [
+    lecturers,
+    totalMatching,
+    totalRequirements,
+    totalLecturers,
+    filledRows,
+    totalValid,
+    totalNeedAction,
+  ] = await Promise.all([
+    prisma.lecturerProfile.findMany({
+      where: lecturerWhere,
       orderBy: {
         createdAt: "desc",
       },
+      skip,
+      take: pageSize,
       include: {
         user: {
           select: {
@@ -136,6 +160,8 @@ export default async function AdminDosenPage({
       },
     }),
 
+    prisma.lecturerProfile.count({ where: lecturerWhere }),
+
     prisma.documentRequirement.count({
       where: {
         audience: {
@@ -143,7 +169,48 @@ export default async function AdminDosenPage({
         },
       },
     }),
+
+    prisma.lecturerProfile.count({ where: activeLecturerWhere }),
+
+    prisma.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(DISTINCT (submission."lecturerId", submission."requirementId"))::int AS "count"
+      FROM "DocumentSubmission" AS submission
+      INNER JOIN "LecturerProfile" AS lecturer
+        ON lecturer."id" = submission."lecturerId"
+      INNER JOIN "User" AS account
+        ON account."id" = lecturer."userId"
+      WHERE account."status" <> 'SUSPENDED'
+        AND submission."status" <> 'NOT_UPLOADED'
+    `,
+
+    prisma.documentSubmission.count({
+      where: {
+        lecturer: activeLecturerWhere,
+        status: "VALID",
+      },
+    }),
+
+    prisma.documentSubmission.count({
+      where: {
+        lecturer: activeLecturerWhere,
+        status: {
+          in: ["PENDING", "REVISION", "REJECTED"],
+        },
+      },
+    }),
   ]);
+
+  const pageCount = getPageCount(totalMatching, pageSize);
+
+  if (totalMatching > 0 && page > pageCount) {
+    const redirectParams = new URLSearchParams({
+      page: String(pageCount),
+      pageSize: String(pageSize),
+    });
+
+    if (query) redirectParams.set("q", query);
+    redirect(`/admin/dosen?${redirectParams.toString()}`);
+  }
 
   const rows = lecturers.map((lecturer) => {
     const uniqueSubmittedRequirementIds = new Set<string>();
@@ -194,20 +261,7 @@ export default async function AdminDosenPage({
     };
   });
 
-  const totalLecturers = rows.length;
-
-  const totalFilled = rows.reduce((sum, row) => sum + row.filled, 0);
-
-  const totalValid = rows.reduce((sum, row) => sum + row.valid, 0);
-
-  const totalNeedAction = rows.reduce((sum, row) => sum + row.needAction, 0);
-
-  const averageCompletion =
-    rows.length > 0
-      ? Math.round(
-          rows.reduce((sum, row) => sum + row.completionRate, 0) / rows.length,
-        )
-      : 0;
+  const totalFilled = filledRows[0]?.count || 0;
 
   return (
     <AppShell
@@ -285,6 +339,7 @@ export default async function AdminDosenPage({
                 placeholder="Cari nama, NIDN/NUPTK, prodi, atau email..."
                 className="w-full bg-transparent text-sm font-bold text-slate-700 outline-none placeholder:text-slate-400"
               />
+              <input type="hidden" name="pageSize" value={pageSize} />
             </form>
           </div>
         </section>
@@ -502,6 +557,14 @@ export default async function AdminDosenPage({
             })}
           </section>
         )}
+
+        <Pagination
+          pathname="/admin/dosen"
+          page={page}
+          pageSize={pageSize}
+          totalItems={totalMatching}
+          query={{ q: query || undefined }}
+        />
       </div>
     </AppShell>
   );

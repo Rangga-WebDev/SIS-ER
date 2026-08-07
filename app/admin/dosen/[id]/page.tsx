@@ -9,6 +9,7 @@ import VerifySubmissionForm from "@/components/admin/VerifySubmissionForm";
 import DocumentVersionHistory from "@/components/documents/DocumentVersionHistory";
 import FilePreviewModal from "@/components/documents/FilePreviewModal";
 import LecturerAvatar from "@/components/ui/LecturerAvatar";
+import AdminPasswordResetForm from "@/components/admin/AdminPasswordResetForm";
 
 import {
   ArrowLeft,
@@ -374,6 +375,23 @@ export default async function AdminDosenDetailPage({
                 <DarkCounter label="Tolak" value={rejectedCount} />
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-black text-slate-950">Keamanan Akun</h2>
+              <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                Reset hanya setelah identitas dosen diverifikasi melalui kontak
+                resmi. Tindakan ini dicatat dan mencabut seluruh sesi lama.
+              </p>
+            </div>
+
+            <AdminPasswordResetForm
+              userId={lecturer.userId}
+              email={lecturer.user.email}
+            />
           </div>
         </section>
 

@@ -18,13 +18,16 @@ const loginSchema = z.object({
 function getRedirectPath(role: string) {
   if (role === "ADMIN") return "/admin/dashboard";
   if (role === "DOSEN") return "/dosen/dashboard";
+  if (role === "TIM_PAK") return "/pak/dashboard";
+  if (role === "KOMITE_INTEGRITAS_AKADEMIK") return "/komite/dashboard";
+  if (role === "TIM_SENAT") return "/senat/dashboard";
   return "/";
 }
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     key: `login:${ip}`,
     limit: 8,
     windowMs: 60_000,
@@ -39,6 +42,19 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const data = loginSchema.parse(body);
+
+    // Batasi percobaan per akun untuk menahan brute force terdistribusi.
+    const accountLimit = await rateLimit({
+      key: `login:email:${data.email.toLowerCase()}`,
+      limit: 10,
+      windowMs: 15 * 60_000,
+    });
+
+    if (!accountLimit.allowed) {
+      return rateLimitResponse(
+        "Terlalu banyak percobaan untuk akun ini. Coba lagi beberapa saat.",
+      );
+    }
 
     const user = await prisma.user.findUnique({
       where: {
@@ -97,6 +113,7 @@ export async function POST(request: Request) {
       email: user.email,
       role: user.role,
       status: user.status,
+      tokenVersion: user.tokenVersion,
     })
       .setProtectedHeader({
         alg: "HS256",

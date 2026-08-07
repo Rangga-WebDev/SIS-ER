@@ -4,7 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { DUPAK_TEMPLATE_ROWS } from "@/lib/dupak-template";
+import {
+  computeDupakSubtotals,
+  DUPAK_TEMPLATE_ROWS,
+  type DupakCreditData,
+} from "@/lib/dupak-template";
 
 export const runtime = "nodejs";
 
@@ -232,59 +236,77 @@ export async function GET(request: NextRequest) {
   worksheet.addRow([]);
 
   const creditData = getObject(submission.creditData);
+  const subtotals = computeDupakSubtotals(creditData as DupakCreditData);
 
   DUPAK_TEMPLATE_ROWS.forEach((templateRow) => {
     const rowData = getRowCreditData(creditData, templateRow.code);
 
-    const pengusulLama = getNumberFromRow(rowData, [
-      "pengusulLama",
-      "instansiPengusulLama",
-      "lamaPengusul",
-      "oldProposed",
-    ]);
+    const subtotal =
+      templateRow.type === "TOTAL" ? subtotals[templateRow.code] : null;
 
-    const pengusulBaru = getNumberFromRow(rowData, [
-      "pengusulBaru",
-      "instansiPengusulBaru",
-      "baruPengusul",
-      "newProposed",
-    ]);
+    const pengusulLama = subtotal
+      ? subtotal.oldProposer || null
+      : getNumberFromRow(rowData, [
+          "oldProposer",
+          "pengusulLama",
+          "instansiPengusulLama",
+          "lamaPengusul",
+          "oldProposed",
+        ]);
 
-    const pengusulJumlah =
-      getNumberFromRow(rowData, [
-        "pengusulJumlah",
-        "instansiPengusulJumlah",
-        "jumlahPengusul",
-        "totalProposed",
-      ]) ??
-      (pengusulLama !== null || pengusulBaru !== null
-        ? Number(pengusulLama || 0) + Number(pengusulBaru || 0)
-        : null);
+    const pengusulBaru = subtotal
+      ? subtotal.newProposer || null
+      : getNumberFromRow(rowData, [
+          "newProposer",
+          "pengusulBaru",
+          "instansiPengusulBaru",
+          "baruPengusul",
+          "newProposed",
+        ]);
 
-    const penilaiLama = getNumberFromRow(rowData, [
-      "penilaiLama",
-      "timPenilaiLama",
-      "lamaPenilai",
-      "oldAssessed",
-    ]);
+    const pengusulJumlah = subtotal
+      ? subtotal.proposerTotal || null
+      : (getNumberFromRow(rowData, [
+          "pengusulJumlah",
+          "instansiPengusulJumlah",
+          "jumlahPengusul",
+          "totalProposed",
+        ]) ??
+        (pengusulLama !== null || pengusulBaru !== null
+          ? Number(pengusulLama || 0) + Number(pengusulBaru || 0)
+          : null));
 
-    const penilaiBaru = getNumberFromRow(rowData, [
-      "penilaiBaru",
-      "timPenilaiBaru",
-      "baruPenilai",
-      "newAssessed",
-    ]);
+    const penilaiLama = subtotal
+      ? subtotal.oldAssessor || null
+      : getNumberFromRow(rowData, [
+          "oldAssessor",
+          "penilaiLama",
+          "timPenilaiLama",
+          "lamaPenilai",
+          "oldAssessed",
+        ]);
 
-    const penilaiJumlah =
-      getNumberFromRow(rowData, [
-        "penilaiJumlah",
-        "timPenilaiJumlah",
-        "jumlahPenilai",
-        "totalAssessed",
-      ]) ??
-      (penilaiLama !== null || penilaiBaru !== null
-        ? Number(penilaiLama || 0) + Number(penilaiBaru || 0)
-        : null);
+    const penilaiBaru = subtotal
+      ? subtotal.newAssessor || null
+      : getNumberFromRow(rowData, [
+          "newAssessor",
+          "penilaiBaru",
+          "timPenilaiBaru",
+          "baruPenilai",
+          "newAssessed",
+        ]);
+
+    const penilaiJumlah = subtotal
+      ? subtotal.assessorTotal || null
+      : (getNumberFromRow(rowData, [
+          "penilaiJumlah",
+          "timPenilaiJumlah",
+          "jumlahPenilai",
+          "totalAssessed",
+        ]) ??
+        (penilaiLama !== null || penilaiBaru !== null
+          ? Number(penilaiLama || 0) + Number(penilaiBaru || 0)
+          : null));
 
     const excelRow = worksheet.addRow([
       templateRow.label,

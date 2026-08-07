@@ -12,6 +12,7 @@ export type SessionPayload = JWTPayload & {
   email?: string;
   role?: Role;
   status?: AccountStatus;
+  tokenVersion?: number;
 };
 
 export function getJwtSecret() {
@@ -58,6 +59,12 @@ export async function getCurrentUser() {
   if (!user) return null;
 
   if (user.status !== "ACTIVE") return null;
+
+  // Token terbitan sebelum reset password (versi lebih rendah) ditolak.
+  const payloadVersion =
+    typeof payload.tokenVersion === "number" ? payload.tokenVersion : 0;
+
+  if (payloadVersion !== user.tokenVersion) return null;
 
   return {
     id: user.id,

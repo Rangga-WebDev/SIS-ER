@@ -5,7 +5,13 @@ import { jwtVerify } from "jose";
 
 const SESSION_COOKIE_NAME = "sister_pak_session";
 
-type SessionRole = "DOSEN" | "ADMIN" | "OPERATOR";
+type SessionRole =
+  | "DOSEN"
+  | "ADMIN"
+  | "OPERATOR"
+  | "TIM_PAK"
+  | "KOMITE_INTEGRITAS_AKADEMIK"
+  | "TIM_SENAT";
 
 type RouteGuard = {
   prefix: string;
@@ -13,29 +19,35 @@ type RouteGuard = {
 };
 
 const guardedRoutes: RouteGuard[] = [
-  {
-    prefix: "/dosen",
-    roles: ["DOSEN"],
-  },
-  {
-    prefix: "/admin",
-    roles: ["ADMIN"],
-  },
-  {
-    prefix: "/api/dosen",
-    roles: ["DOSEN"],
-  },
-  {
-    prefix: "/api/admin",
-    roles: ["ADMIN"],
-  },
+  { prefix: "/dosen", roles: ["DOSEN"] },
+  { prefix: "/admin", roles: ["ADMIN"] },
+  { prefix: "/pak", roles: ["TIM_PAK"] },
+  { prefix: "/komite", roles: ["KOMITE_INTEGRITAS_AKADEMIK"] },
+  { prefix: "/senat", roles: ["TIM_SENAT"] },
+  { prefix: "/api/dosen", roles: ["DOSEN"] },
+  { prefix: "/api/admin", roles: ["ADMIN"] },
+  { prefix: "/api/pak", roles: ["TIM_PAK"] },
+  { prefix: "/api/komite", roles: ["KOMITE_INTEGRITAS_AKADEMIK"] },
+  { prefix: "/api/senat", roles: ["TIM_SENAT"] },
   {
     prefix: "/api/files",
-    roles: ["DOSEN", "ADMIN"],
+    roles: [
+      "DOSEN",
+      "ADMIN",
+      "TIM_PAK",
+      "KOMITE_INTEGRITAS_AKADEMIK",
+      "TIM_SENAT",
+    ],
   },
   {
     prefix: "/api/notifications",
-    roles: ["DOSEN", "ADMIN"],
+    roles: [
+      "DOSEN",
+      "ADMIN",
+      "TIM_PAK",
+      "KOMITE_INTEGRITAS_AKADEMIK",
+      "TIM_SENAT",
+    ],
   },
 ];
 
@@ -68,12 +80,7 @@ function isApiRoute(pathname: string) {
 function unauthorized(request: NextRequest, message = "Unauthorized") {
   if (isApiRoute(request.nextUrl.pathname)) {
     return applySecurityHeaders(
-      NextResponse.json(
-        {
-          message,
-        },
-        { status: 401 },
-      ),
+      NextResponse.json({ message }, { status: 401 }),
     );
   }
 
@@ -86,12 +93,7 @@ function unauthorized(request: NextRequest, message = "Unauthorized") {
 function forbidden(request: NextRequest, message = "Forbidden") {
   if (isApiRoute(request.nextUrl.pathname)) {
     return applySecurityHeaders(
-      NextResponse.json(
-        {
-          message,
-        },
-        { status: 403 },
-      ),
+      NextResponse.json({ message }, { status: 403 }),
     );
   }
 
@@ -102,10 +104,8 @@ function getGuard(pathname: string) {
   return guardedRoutes.find((route) => pathname.startsWith(route.prefix));
 }
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  const guard = getGuard(pathname);
+export async function proxy(request: NextRequest) {
+  const guard = getGuard(request.nextUrl.pathname);
 
   if (!guard) {
     return applySecurityHeaders(NextResponse.next());
@@ -119,7 +119,6 @@ export async function middleware(request: NextRequest) {
 
   try {
     const { payload } = await jwtVerify(token, getJwtSecret());
-
     const role = payload.role;
 
     if (!role || typeof role !== "string") {
@@ -140,8 +139,14 @@ export const config = {
   matcher: [
     "/dosen/:path*",
     "/admin/:path*",
+    "/pak/:path*",
+    "/komite/:path*",
+    "/senat/:path*",
     "/api/dosen/:path*",
     "/api/admin/:path*",
+    "/api/pak/:path*",
+    "/api/komite/:path*",
+    "/api/senat/:path*",
     "/api/files/:path*",
     "/api/notifications/:path*",
   ],

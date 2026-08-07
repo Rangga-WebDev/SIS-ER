@@ -3,6 +3,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isLecturerEditable } from "@/lib/dupak-workflow";
+import type { DupakStatus } from "@/lib/app-types";
 import { DUPAK_TEMPLATE_ROWS } from "@/lib/dupak-template";
 
 export const runtime = "nodejs";
@@ -106,14 +108,31 @@ export async function POST(request: Request) {
       );
     }
 
+    const existing = await prisma.dupakSubmission.findUnique({
+      where: {
+        lecturerId: lecturer.id,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (existing && !isLecturerEditable(existing.status as DupakStatus)) {
+      return NextResponse.json(
+        {
+          message:
+            "Pengajuan sedang diproses dan terkunci. Bukti hanya dapat diubah saat pengajuan dikembalikan untuk revisi.",
+        },
+        { status: 409 },
+      );
+    }
+
     const dupakSubmission = await prisma.dupakSubmission.upsert({
       where: {
         lecturerId: lecturer.id,
       },
-      update: {
-        status: "DRAFT",
-        currentStep: 3,
-      },
+      update: {},
       create: {
         lecturerId: lecturer.id,
         instansi: lecturer.institution,

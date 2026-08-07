@@ -15,9 +15,13 @@ import {
   Bell,
   BookOpenCheck,
   ChevronRight,
+  ClipboardCheck,
   FileCheck2,
+  GaugeCircle,
   Home,
   LayoutDashboard,
+  Scale,
+  ScrollText,
   Search,
   Settings,
   ShieldCheck,
@@ -26,7 +30,12 @@ import {
   UsersRound,
 } from "lucide-react";
 
-type Role = "DOSEN" | "ADMIN";
+type Role =
+  | "DOSEN"
+  | "ADMIN"
+  | "TIM_PAK"
+  | "KOMITE_INTEGRITAS_AKADEMIK"
+  | "TIM_SENAT";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -72,17 +81,110 @@ const adminNav: NavItem[] = [
   },
   {
     href: "/admin/dosen",
-    label: "Daftar Dosen",
+    label: "Data Dosen",
     desc: "Verifikasi berkas",
     icon: <UsersRound size={19} />,
   },
   {
     href: "/admin/dupak",
-    label: "Monitoring DUPAK",
-    desc: "Pantau progres DUPAK dosen",
+    label: "Pengajuan DUPAK",
+    desc: "Verifikasi & monitoring",
     icon: <ClipboardList size={19} />,
   },
+  {
+    href: "/admin/penugasan",
+    label: "Penugasan Tim PAK",
+    desc: "Tugaskan penilai",
+    icon: <ClipboardCheck size={19} />,
+  },
+  {
+    href: "/admin/tim-pak",
+    label: "Kelola Tim PAK",
+    desc: "Akun & beban kerja",
+    icon: <ShieldCheck size={19} />,
+  },
+  {
+    href: "/admin/berita-acara",
+    label: "Berita Acara",
+    desc: "Pemeriksaan & pengesahan",
+    icon: <ScrollText size={19} />,
+  },
 ];
+
+const pakNav: NavItem[] = [
+  {
+    href: "/pak/dashboard",
+    label: "Dashboard",
+    desc: "Ringkasan tugas",
+    icon: <LayoutDashboard size={19} />,
+  },
+  {
+    href: "/pak/tugas",
+    label: "Tugas Penilaian",
+    desc: "Monitoring & penilaian DUPAK",
+    icon: <ClipboardCheck size={19} />,
+  },
+  {
+    href: "/pak/riwayat",
+    label: "Riwayat Penilaian",
+    desc: "Tugas yang selesai",
+    icon: <FileCheck2 size={19} />,
+  },
+];
+
+const komiteNav: NavItem[] = [
+  {
+    href: "/komite/dashboard",
+    label: "Dashboard",
+    desc: "Pengajuan masuk",
+    icon: <LayoutDashboard size={19} />,
+  },
+  {
+    href: "/komite/riwayat",
+    label: "Riwayat Pemeriksaan",
+    desc: "Keputusan sebelumnya",
+    icon: <GaugeCircle size={19} />,
+  },
+];
+
+const senatNav: NavItem[] = [
+  {
+    href: "/senat/dashboard",
+    label: "Dashboard",
+    desc: "Pengajuan masuk",
+    icon: <LayoutDashboard size={19} />,
+  },
+  {
+    href: "/senat/riwayat",
+    label: "Riwayat Keputusan",
+    desc: "Keputusan senat",
+    icon: <Scale size={19} />,
+  },
+];
+
+const NAVS: Record<Role, NavItem[]> = {
+  DOSEN: dosenNav,
+  ADMIN: adminNav,
+  TIM_PAK: pakNav,
+  KOMITE_INTEGRITAS_AKADEMIK: komiteNav,
+  TIM_SENAT: senatNav,
+};
+
+const ROLE_TITLES: Record<Role, string> = {
+  DOSEN: "Portal Dosen",
+  ADMIN: "Portal Admin Tim PAK",
+  TIM_PAK: "Portal Tim PAK",
+  KOMITE_INTEGRITAS_AKADEMIK: "Portal Komite Integritas",
+  TIM_SENAT: "Portal Tim Senat",
+};
+
+const ROLE_DESCS: Record<Role, string> = {
+  DOSEN: "Kelola dokumen kenaikan jabatan secara mandiri.",
+  ADMIN: "Pantau, verifikasi, dan tugaskan penilaian DUPAK.",
+  TIM_PAK: "Nilai pengajuan DUPAK yang ditugaskan kepada Anda.",
+  KOMITE_INTEGRITAS_AKADEMIK: "Periksa integritas akademik pengusul.",
+  TIM_SENAT: "Tinjau berita acara dan beri keputusan senat.",
+};
 
 export default function AppShell({
   children,
@@ -96,7 +198,7 @@ export default function AppShell({
 
   const [query, setQuery] = useState(searchParams.get("q") || "");
 
-  const navItems = role === "DOSEN" ? dosenNav : adminNav;
+  const navItems = NAVS[role] || dosenNav;
 
   const getSearchTarget = () => {
     if (role === "ADMIN") {
@@ -104,6 +206,10 @@ export default function AppShell({
         ? "/admin/dupak"
         : "/admin/dosen";
     }
+
+    if (role === "TIM_PAK") return "/pak/tugas";
+    if (role === "KOMITE_INTEGRITAS_AKADEMIK") return "/komite/dashboard";
+    if (role === "TIM_SENAT") return "/senat/dashboard";
 
     return "/dosen/dokumen";
   };
@@ -159,13 +265,9 @@ export default function AppShell({
                   )}
                 </div>
 
-                <p className="font-black text-slate-950">
-                  {role === "DOSEN" ? "Portal Dosen" : "Portal Admin"}
-                </p>
+                <p className="font-black text-slate-950">{ROLE_TITLES[role]}</p>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
-                  {role === "DOSEN"
-                    ? "Kelola dokumen kenaikan jabatan secara mandiri."
-                    : "Pantau, periksa, dan validasi dokumen dosen."}
+                  {ROLE_DESCS[role]}
                 </p>
               </div>
 
@@ -250,7 +352,9 @@ export default function AppShell({
                 <MiniAction
                   icon={<Settings size={16} />}
                   href={
-                    role === "DOSEN" ? "/dosen/settings" : "/admin/dashboard"
+                    role === "DOSEN"
+                      ? "/dosen/settings"
+                      : navItems[0]?.href || "/"
                   }
                   label="Setting"
                 />
@@ -321,8 +425,8 @@ export default function AppShell({
         </section>
       </div>
 
-      <nav className="fixed bottom-4 left-4 right-4 z-50 grid grid-cols-3 gap-2 rounded-[1.5rem] border border-slate-200 bg-white/95 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur-xl lg:hidden">
-        {navItems.map((item) => {
+      <nav className="fixed bottom-4 left-4 right-4 z-50 grid grid-cols-4 gap-2 rounded-[1.5rem] border border-slate-200 bg-white/95 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur-xl lg:hidden">
+        {navItems.slice(0, 3).map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
 

@@ -3,6 +3,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   Download,
   ExternalLink,
@@ -131,13 +132,16 @@ export default function FilePreviewModal({
               )}
 
               {isImage ? (
-                <div className="flex h-full items-center justify-center overflow-auto p-5">
-                  <img
+                <div className="relative h-full w-full p-5">
+                  <Image
                     src={previewUrl}
                     alt={fileName || "Preview dokumen"}
+                    fill
+                    unoptimized
+                    sizes="100vw"
                     onLoad={() => setLoadingPreview(false)}
                     onError={() => setLoadingPreview(false)}
-                    className="max-h-full max-w-full rounded-2xl bg-white object-contain shadow-xl"
+                    className="object-contain p-5"
                   />
                 </div>
               ) : isPdf ? (

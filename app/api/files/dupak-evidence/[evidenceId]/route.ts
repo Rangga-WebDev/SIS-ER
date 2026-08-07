@@ -4,6 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  canKomiteSee,
+  canSenateSee,
+  getActivePakAssignment,
+} from "@/lib/pak-access";
 
 export const runtime = "nodejs";
 
@@ -68,7 +73,18 @@ export async function GET(request: NextRequest) {
     user.role === "DOSEN" &&
     evidence.dupakSubmission.lecturer.userId === user.id;
 
-  if (!isAdmin && !isOwner) {
+  const isAssignedPak =
+    user.role === "TIM_PAK" &&
+    Boolean(await getActivePakAssignment(user.id, evidence.dupakSubmissionId));
+
+  const isKomite =
+    user.role === "KOMITE_INTEGRITAS_AKADEMIK" &&
+    canKomiteSee(evidence.dupakSubmission.status);
+
+  const isSenat =
+    user.role === "TIM_SENAT" && canSenateSee(evidence.dupakSubmission.status);
+
+  if (!isAdmin && !isOwner && !isAssignedPak && !isKomite && !isSenat) {
     return NextResponse.json(
       {
         message: "Anda tidak memiliki akses ke bukti dokumen ini.",

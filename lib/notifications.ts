@@ -73,3 +73,39 @@ export async function notifyAdmins({
     })),
   });
 }
+
+type NotifyRoleInput = NotifyAdminsInput & {
+  role: "TIM_PAK" | "KOMITE_INTEGRITAS_AKADEMIK" | "TIM_SENAT";
+};
+
+export async function notifyRole({
+  role,
+  title,
+  message,
+  type = "SYSTEM",
+  href = null,
+  metadata = {},
+}: NotifyRoleInput) {
+  const users = await prisma.user.findMany({
+    where: {
+      role,
+      status: "ACTIVE",
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (users.length === 0) return;
+
+  await prisma.notification.createMany({
+    data: users.map((user) => ({
+      userId: user.id,
+      title,
+      message,
+      type,
+      href,
+      metadata,
+    })),
+  });
+}

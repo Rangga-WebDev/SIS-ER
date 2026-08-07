@@ -121,7 +121,7 @@ export async function POST(
     );
   }
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     key: `verify:${user.id}`,
     limit: 60,
     windowMs: 60_000,

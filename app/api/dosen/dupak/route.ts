@@ -6,6 +6,9 @@ import type { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyAdmins } from "@/lib/notifications";
+import { recordStatusHistory } from "@/lib/audit";
+import { isLecturerEditable } from "@/lib/dupak-workflow";
+import type { DupakStatus } from "@/lib/app-types";
 import {
   DUPAK_PERSONAL_FIELDS,
   DUPAK_TEMPLATE_ROWS,
@@ -150,9 +153,24 @@ export async function PATCH(request: Request) {
         lecturerId: lecturer.id,
       },
       select: {
+        id: true,
+        status: true,
         creditData: true,
       },
     });
+
+    const currentStatus = (existingSubmission?.status ||
+      "DRAFT") as DupakStatus;
+
+    if (existingSubmission && !isLecturerEditable(currentStatus)) {
+      return NextResponse.json(
+        {
+          message:
+            "Pengajuan sedang diproses dan terkunci. Perubahan hanya dapat dilakukan jika pengajuan dikembalikan untuk revisi.",
+        },
+        { status: 409 },
+      );
+    }
 
     const creditData = mergeCreditDataKeepingAssessor(
       toCreditData(data.creditData),
@@ -168,7 +186,21 @@ export async function PATCH(request: Request) {
       creditData,
     });
 
-    const status = data.action === "SUBMIT" ? "SUBMITTED" : "DRAFT";
+    // Kirim ulang setelah revisi Tim PAK mengikuti status khusus agar
+    // penilai tahu ini pengajuan revisi, bukan pengajuan baru.
+    const isPakRevision =
+      currentStatus === "PERLU_REVISI_TIM_PAK" || currentStatus === "REVISION";
+
+    const submitStatus: DupakStatus = isPakRevision
+      ? "DIKIRIM_ULANG_SETELAH_REVISI"
+      : "SUBMITTED";
+
+    const status: DupakStatus =
+      data.action === "SUBMIT"
+        ? submitStatus
+        : currentStatus === "DRAFT"
+          ? "DRAFT"
+          : currentStatus;
 
     const submission = await prisma.dupakSubmission.upsert({
       where: {
@@ -219,24 +251,63 @@ export async function PATCH(request: Request) {
     });
 
     if (data.action === "SUBMIT") {
-      await notifyAdmins({
-        title: "DUPAK Dosen Dikirim",
-        message: `${lecturer.fullName} mengirim pengisian DUPAK dengan progres ${completionPercent}%.`,
-        type: "SYSTEM",
-        href: `/admin/dupak/${submission.id}`,
-        metadata: {
-          lecturerId: lecturer.id,
-          lecturerName: lecturer.fullName,
-          completionPercent,
-          status,
-        },
+      await recordStatusHistory({
+        submissionId: submission.id,
+        fromStatus: existingSubmission ? currentStatus : null,
+        toStatus: status,
+        reason: isPakRevision
+          ? "Dosen mengirim ulang pengajuan setelah revisi."
+          : "Dosen mengirim pengajuan.",
+        changedById: user.id,
+        changedByEmail: user.email,
+        changedByRole: user.role,
       });
+
+      if (isPakRevision) {
+        // Beri tahu Tim PAK yang masih aktif menilai pengajuan ini.
+        const activeAssignments = await prisma.pakAssignment.findMany({
+          where: {
+            submissionId: submission.id,
+            status: "ACTIVE",
+          },
+          select: {
+            pakUserId: true,
+          },
+        });
+
+        if (activeAssignments.length > 0) {
+          await prisma.notification.createMany({
+            data: activeAssignments.map((assignment) => ({
+              userId: assignment.pakUserId,
+              title: "Revisi DUPAK Dikirim Ulang",
+              message: `${lecturer.fullName} mengirim ulang DUPAK setelah revisi.`,
+              type: "SYSTEM" as const,
+              href: "/pak/tugas",
+            })),
+          });
+        }
+      } else {
+        await notifyAdmins({
+          title: "DUPAK Dosen Dikirim",
+          message: `${lecturer.fullName} mengirim pengisian DUPAK dengan progres ${completionPercent}%.`,
+          type: "SYSTEM",
+          href: `/admin/dupak/${submission.id}`,
+          metadata: {
+            lecturerId: lecturer.id,
+            lecturerName: lecturer.fullName,
+            completionPercent,
+            status,
+          },
+        });
+      }
     }
 
     return NextResponse.json({
       message:
         data.action === "SUBMIT"
-          ? "DUPAK berhasil dikirim ke admin."
+          ? isPakRevision
+            ? "Revisi DUPAK berhasil dikirim ulang ke Tim PAK."
+            : "DUPAK berhasil dikirim ke admin."
           : "DUPAK berhasil disimpan sebagai draft.",
       submission,
     });

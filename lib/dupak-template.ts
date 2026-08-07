@@ -593,3 +593,75 @@ export function getAssessorTotal(value?: DupakCreditValue) {
     getNumberValue(value?.oldAssessor) + getNumberValue(value?.newAssessor)
   );
 }
+
+export type DupakSubtotal = {
+  oldProposer: number;
+  newProposer: number;
+  proposerTotal: number;
+  oldAssessor: number;
+  newAssessor: number;
+  assessorTotal: number;
+};
+
+export const DUPAK_GRAND_TOTAL_CODE = "JUMLAH_UTAMA_DAN_PENUNJANG";
+
+function round2(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+// Baris TOTAL menjumlah seluruh ITEM pada seksinya; baris grand total
+// menjumlah seluruh ITEM di semua seksi.
+export function computeDupakSubtotals(
+  creditData?: DupakCreditData | null,
+): Record<string, DupakSubtotal> {
+  const data = creditData || {};
+  const result: Record<string, DupakSubtotal> = {};
+
+  const zero = (): DupakSubtotal => ({
+    oldProposer: 0,
+    newProposer: 0,
+    proposerTotal: 0,
+    oldAssessor: 0,
+    newAssessor: 0,
+    assessorTotal: 0,
+  });
+
+  let section = zero();
+  const grand = zero();
+
+  const accumulate = (target: DupakSubtotal, value?: DupakCreditValue) => {
+    target.oldProposer += getNumberValue(value?.oldProposer);
+    target.newProposer += getNumberValue(value?.newProposer);
+    target.oldAssessor += getNumberValue(value?.oldAssessor);
+    target.newAssessor += getNumberValue(value?.newAssessor);
+  };
+
+  const finalize = (target: DupakSubtotal): DupakSubtotal => ({
+    oldProposer: round2(target.oldProposer),
+    newProposer: round2(target.newProposer),
+    proposerTotal: round2(target.oldProposer + target.newProposer),
+    oldAssessor: round2(target.oldAssessor),
+    newAssessor: round2(target.newAssessor),
+    assessorTotal: round2(target.oldAssessor + target.newAssessor),
+  });
+
+  for (const row of DUPAK_TEMPLATE_ROWS) {
+    if (row.type === "ITEM") {
+      const value = data[row.code];
+      accumulate(section, value);
+      accumulate(grand, value);
+      continue;
+    }
+
+    if (row.type === "TOTAL") {
+      if (row.code === DUPAK_GRAND_TOTAL_CODE) {
+        result[row.code] = finalize(grand);
+      } else {
+        result[row.code] = finalize(section);
+        section = zero();
+      }
+    }
+  }
+
+  return result;
+}

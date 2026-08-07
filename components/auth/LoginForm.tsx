@@ -9,7 +9,6 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
-  GraduationCap,
   Loader2,
   LockKeyhole,
   Mail,
@@ -17,10 +16,8 @@ import {
   UserPlus,
 } from "lucide-react";
 
-type Role = "DOSEN" | "ADMIN";
 export default function LoginForm() {
   const router = useRouter();
-  const [role, setRole] = useState<Role>("DOSEN");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -34,7 +31,7 @@ export default function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password }),
       });
       const result = await response.json();
       if (!response.ok) {
@@ -103,24 +100,10 @@ export default function LoginForm() {
               Masuk ke Akun
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-600">
-              Pilih role akun dan masuk menggunakan email serta password.
+              Masuk menggunakan email dan password. Sistem akan mengarahkan Anda
+              ke dashboard sesuai peran akun: Dosen, Admin Tim PAK, Tim PAK,
+              Komite Integritas Akademik, atau Tim Senat.
             </p>
-            <div className="mt-8 grid grid-cols-2 gap-4">
-              <RoleButton
-                active={role === "DOSEN"}
-                icon={<GraduationCap size={25} />}
-                title="Dosen"
-                desc="Upload dokumen"
-                onClick={() => setRole("DOSEN")}
-              />
-              <RoleButton
-                active={role === "ADMIN"}
-                icon={<ShieldCheck size={25} />}
-                title="Admin"
-                desc="Verifikasi dokumen"
-                onClick={() => setRole("ADMIN")}
-              />
-            </div>
             <form onSubmit={handleLogin} className="mt-8 space-y-5">
               <div>
                 <label className="mb-2 block font-black text-slate-800">
@@ -220,35 +203,6 @@ export default function LoginForm() {
         </section>
       </div>
     </div>
-  );
-}
-function RoleButton({
-  active,
-  icon,
-  title,
-  desc,
-  onClick,
-}: {
-  active: boolean;
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group rounded-3xl border p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${active ? "border-sky-300 bg-sky-50 shadow-sky-100" : "border-slate-200 bg-white hover:border-sky-200"}`}
-    >
-      <div
-        className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl transition ${active ? "bg-sky-700 text-white" : "bg-slate-100 text-slate-500 group-hover:bg-sky-100 group-hover:text-sky-700"}`}
-      >
-        {icon}
-      </div>
-      <h3 className="font-black text-slate-950">{title}</h3>
-      <p className="mt-1 text-sm leading-6 text-slate-500">{desc}</p>
-    </button>
   );
 }
 function InfoCard({ title, desc }: { title: string; desc: string }) {

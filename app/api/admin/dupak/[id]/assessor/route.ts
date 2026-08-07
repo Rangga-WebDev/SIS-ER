@@ -61,7 +61,7 @@ export async function PATCH(
     );
   }
 
-  const limit = rateLimit({
+  const limit = await rateLimit({
     key: `dupak-assessor:${user.id}`,
     limit: 60,
     windowMs: 60_000,
@@ -97,6 +97,26 @@ export async function PATCH(
       return NextResponse.json(
         { message: "DUPAK tidak ditemukan." },
         { status: 404 },
+      );
+    }
+
+    // Penilaian yang sudah disahkan Tim PAK terkunci, termasuk untuk admin.
+    const ratifiedCount = await prisma.pakAssessment.count({
+      where: {
+        assignment: {
+          submissionId: submission.id,
+        },
+        isRatified: true,
+      },
+    });
+
+    if (ratifiedCount > 0) {
+      return NextResponse.json(
+        {
+          message:
+            "Penilaian sudah disahkan dan terkunci. Buka kembali penilaian terlebih dahulu.",
+        },
+        { status: 409 },
       );
     }
 

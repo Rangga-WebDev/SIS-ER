@@ -5,6 +5,8 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
+import { getClientIp, rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { validateFileContent } from "@/lib/file-validation";
 
 export const runtime = "nodejs";
 
@@ -28,10 +30,29 @@ function safeFileName(name: string) {
 }
 
 function validatePassword(password: string) {
-  return password.length >= 8;
+  return (
+    password.length >= 8 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password)
+  );
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request);
+
+  const limit = await rateLimit({
+    key: `register:${ip}`,
+    limit: 5,
+    windowMs: 10 * 60_000,
+  });
+
+  if (!limit.allowed) {
+    return rateLimitResponse(
+      "Terlalu banyak percobaan registrasi. Coba lagi beberapa saat.",
+    );
+  }
+
   try {
     const formData = await request.formData();
 
@@ -72,7 +93,10 @@ export async function POST(request: Request) {
 
     if (!validatePassword(password)) {
       return NextResponse.json(
-        { message: "Password minimal 8 karakter." },
+        {
+          message:
+            "Password minimal 8 karakter dengan huruf besar, huruf kecil, dan angka.",
+        },
         { status: 400 },
       );
     }
@@ -173,16 +197,27 @@ export async function POST(request: Request) {
     }
 
     const photoFileName = safeFileName(photo.name);
-    const photoMimeType = photo.type;
     const photoFileSize = photo.size;
+
+    const photoBuffer = Buffer.from(await photo.arrayBuffer());
+
+    // Tipe foto ditentukan dari isi berkas, bukan MIME kiriman client.
+    const photoCheck = validateFileContent(photoBuffer, ALLOWED_PHOTO_TYPES);
+
+    if (!photoCheck.valid || !photoCheck.detectedMime) {
+      return NextResponse.json(
+        { message: "Isi file foto tidak valid. Gunakan JPG, PNG, atau WEBP." },
+        { status: 400 },
+      );
+    }
+
+    const photoMimeType = photoCheck.detectedMime;
 
     const photoStoragePath = [
       "profile-photos",
       nidnOrNuptk,
       `${Date.now()}-${photoFileName}`,
     ].join("/");
-
-    const photoBuffer = Buffer.from(await photo.arrayBuffer());
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(storageBucket)

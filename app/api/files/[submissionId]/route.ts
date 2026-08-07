@@ -59,7 +59,38 @@ export async function GET(
   const isOwner =
     user.role === "DOSEN" && submission.lecturer.userId === user.id;
 
-  if (!isAdmin && !isOwner) {
+  // Reviewer non-admin hanya boleh membuka dokumen dosen yang pengajuan
+  // DUPAK-nya berada dalam lingkup tugas mereka.
+  let isReviewer = false;
+
+  if (
+    ["TIM_PAK", "KOMITE_INTEGRITAS_AKADEMIK", "TIM_SENAT"].includes(user.role)
+  ) {
+    const dupak = await prisma.dupakSubmission.findUnique({
+      where: {
+        lecturerId: submission.lecturer.id,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+
+    if (dupak) {
+      const { canKomiteSee, canSenateSee, getActivePakAssignment } =
+        await import("@/lib/pak-access");
+
+      if (user.role === "TIM_PAK") {
+        isReviewer = Boolean(await getActivePakAssignment(user.id, dupak.id));
+      } else if (user.role === "KOMITE_INTEGRITAS_AKADEMIK") {
+        isReviewer = canKomiteSee(dupak.status);
+      } else {
+        isReviewer = canSenateSee(dupak.status);
+      }
+    }
+  }
+
+  if (!isAdmin && !isOwner && !isReviewer) {
     return NextResponse.json(
       {
         message: "Anda tidak memiliki akses ke dokumen ini.",

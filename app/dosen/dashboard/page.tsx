@@ -33,30 +33,49 @@ export default async function DosenDashboardPage() {
 
   if (!lecturer) redirect("/login");
 
-  const totalRequirement = await prisma.documentRequirement.count({
-    where: {
-      audience: {
-        in: ["DOSEN", "BOTH"],
-      },
-    },
-  });
-
-  const submissions = await prisma.documentSubmission.findMany({
-    where: {
-      lecturerId: lecturer.id,
-    },
-    include: {
-      requirement: {
-        include: {
-          category: true,
+  const [totalRequirement, submissions, statusGroups] = await Promise.all([
+    prisma.documentRequirement.count({
+      where: {
+        audience: {
+          in: ["DOSEN", "BOTH"],
         },
       },
-    },
-    orderBy: {
-      uploadedAt: "desc",
-    },
-    take: 6,
-  });
+    }),
+    prisma.documentSubmission.findMany({
+      where: {
+        lecturerId: lecturer.id,
+      },
+      select: {
+        id: true,
+        status: true,
+        fileName: true,
+        externalUrl: true,
+        requirement: {
+          select: {
+            name: true,
+            category: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        uploadedAt: "desc",
+      },
+      take: 6,
+    }),
+    prisma.documentSubmission.groupBy({
+      by: ["status"],
+      where: {
+        lecturerId: lecturer.id,
+      },
+      _count: {
+        _all: true,
+      },
+    }),
+  ]);
 
   const submissionIds = submissions.map((submission) => submission.id);
 
@@ -92,28 +111,16 @@ export default async function DosenDashboardPage() {
     },
   });
 
-  const uploaded = submissions.length;
+  const statusCount = (status: string) =>
+    statusGroups.find((group) => group.status === status)?._count._all || 0;
 
-  const valid = await prisma.documentSubmission.count({
-    where: {
-      lecturerId: lecturer.id,
-      status: "VALID",
-    },
-  });
-
-  const pending = await prisma.documentSubmission.count({
-    where: {
-      lecturerId: lecturer.id,
-      status: "PENDING",
-    },
-  });
-
-  const revision = await prisma.documentSubmission.count({
-    where: {
-      lecturerId: lecturer.id,
-      status: "REVISION",
-    },
-  });
+  const uploaded = statusGroups.reduce(
+    (sum, group) => sum + group._count._all,
+    0,
+  );
+  const valid = statusCount("VALID");
+  const pending = statusCount("PENDING");
+  const revision = statusCount("REVISION");
 
   const progress = percent(uploaded, totalRequirement);
 

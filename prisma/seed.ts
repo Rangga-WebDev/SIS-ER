@@ -377,18 +377,18 @@ async function seedAssessorAdmins() {
         email,
       },
       update: {
-        role: "ADMIN",
+        role: "TIM_PAK",
         status: "ACTIVE",
       },
       create: {
         email,
         passwordHash,
-        role: "ADMIN",
+        role: "TIM_PAK",
         status: "ACTIVE",
       },
     });
 
-    console.log(`Admin tim penilai aktif: ${email}`);
+    console.log(`Akun Tim PAK aktif: ${email}`);
   }
 }
 

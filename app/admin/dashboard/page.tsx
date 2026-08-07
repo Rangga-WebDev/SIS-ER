@@ -1,5 +1,6 @@
 /** @format */
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
@@ -50,65 +51,124 @@ export default async function AdminDashboardPage() {
   if (!user) redirect("/login");
   if (user.role !== "ADMIN") redirect("/login");
 
-  const dosen = await prisma.lecturerProfile.count();
-
-  const totalSubmissions = await prisma.documentSubmission.count();
-
-  const pending = await prisma.documentSubmission.count({
-    where: {
-      status: "PENDING",
-    },
-  });
-
-  const valid = await prisma.documentSubmission.count({
-    where: {
-      status: "VALID",
-    },
-  });
-
-  const revisi = await prisma.documentSubmission.count({
-    where: {
-      status: "REVISION",
-    },
-  });
-
-  const rejected = await prisma.documentSubmission.count({
-    where: {
-      status: "REJECTED",
-    },
-  });
-
-  const recentSubmissions = await prisma.documentSubmission.findMany({
-    orderBy: {
-      uploadedAt: "desc",
-    },
-    take: 6,
-    include: {
-      lecturer: true,
-      requirement: {
-        include: {
-          category: true,
+  const [
+    dosen,
+    totalSubmissions,
+    pending,
+    valid,
+    revisi,
+    rejected,
+    recentSubmissions,
+    activityLogs,
+    dupakGroups,
+  ] = await Promise.all([
+    prisma.lecturerProfile.count(),
+    prisma.documentSubmission.count(),
+    prisma.documentSubmission.count({ where: { status: "PENDING" } }),
+    prisma.documentSubmission.count({ where: { status: "VALID" } }),
+    prisma.documentSubmission.count({ where: { status: "REVISION" } }),
+    prisma.documentSubmission.count({ where: { status: "REJECTED" } }),
+    prisma.documentSubmission.findMany({
+      orderBy: {
+        uploadedAt: "desc",
+      },
+      take: 6,
+      select: {
+        id: true,
+        status: true,
+        lecturer: {
+          select: {
+            fullName: true,
+          },
+        },
+        requirement: {
+          select: {
+            name: true,
+            category: {
+              select: {
+                name: true,
+              },
+            },
+          },
         },
       },
-    },
-  });
-
-  const activityLogs = await prisma.activityLog.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    take: 12,
-    include: {
-      actor: {
-        select: {
-          email: true,
-          role: true,
+    }),
+    prisma.activityLog.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 12,
+      include: {
+        actor: {
+          select: {
+            email: true,
+            role: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.dupakSubmission.groupBy({
+      by: ["status"],
+      _count: {
+        _all: true,
+      },
+    }),
+  ]);
 
   const validRate = percent(valid, totalSubmissions);
+
+  const statusCount = (statuses: string[]) =>
+    dupakGroups
+      .filter((group) => statuses.includes(group.status))
+      .reduce((sum, group) => sum + group._count._all, 0);
+
+  const totalDupak = dupakGroups.reduce(
+    (sum, group) => sum + group._count._all,
+    0,
+  );
+
+  const pipeline = [
+    { label: "Total Pengajuan", value: totalDupak },
+    { label: "Menunggu Verifikasi Admin", value: statusCount(["SUBMITTED"]) },
+    {
+      label: "Perlu Perbaikan",
+      value: statusCount(["PERLU_PERBAIKAN_ADMIN", "REVISION"]),
+    },
+    {
+      label: "Ditolak Admin",
+      value: statusCount(["DITOLAK_ADMIN", "REJECTED"]),
+    },
+    {
+      label: "Lolos Verifikasi / Belum Ditugaskan",
+      value: statusCount(["LOLOS_VERIFIKASI_ADMIN"]),
+    },
+    {
+      label: "Sudah Ditugaskan",
+      value: statusCount(["DITUGASKAN_KE_TIM_PAK"]),
+    },
+    {
+      label: "Sedang Dinilai",
+      value: statusCount(["SEDANG_DINILAI", "DIKIRIM_ULANG_SETELAH_REVISI"]),
+    },
+    {
+      label: "Perlu Revisi dari Tim PAK",
+      value: statusCount(["PERLU_REVISI_TIM_PAK"]),
+    },
+    {
+      label: "Penilaian Diterima",
+      value: statusCount(["DITERIMA_TIM_PAK", "APPROVED"]),
+    },
+    { label: "Penilaian Disahkan", value: statusCount(["PENILAIAN_DISAHKAN"]) },
+    {
+      label: "Berita Acara Dibuat",
+      value: statusCount(["BERITA_ACARA_DRAFT", "BERITA_ACARA_DISAHKAN"]),
+    },
+    {
+      label: "Pemeriksaan Integritas & Senat",
+      value: statusCount(["PEMERIKSAAN_INTEGRITAS", "PEMERIKSAAN_SENAT"]),
+    },
+    { label: "Pengajuan Selesai", value: statusCount(["SELESAI"]) },
+  ];
 
   return (
     <AppShell
@@ -149,6 +209,32 @@ export default async function AdminDashboardPage() {
             icon={<CheckCircle2 size={24} />}
             tone="emerald"
           />
+        </section>
+
+        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-700">
+            Pipeline DUPAK
+          </p>
+
+          <h2 className="mt-2 text-2xl font-black text-slate-950">
+            Tahapan Seluruh Pengajuan
+          </h2>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {pipeline.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+              >
+                <p className="text-2xl font-black text-slate-950">
+                  {item.value}
+                </p>
+                <p className="mt-0.5 text-xs font-bold leading-5 text-slate-500">
+                  {item.label}
+                </p>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -205,13 +291,13 @@ export default async function AdminDashboardPage() {
               />
             </div>
 
-            <a
+            <Link
               href="/admin/dosen"
               className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-950 px-5 py-4 font-black text-white transition hover:-translate-y-1 hover:bg-slate-800"
             >
               Buka Daftar Dosen
               <ArrowRight size={20} />
-            </a>
+            </Link>
           </div>
 
           <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
@@ -226,13 +312,13 @@ export default async function AdminDashboardPage() {
                 </h2>
               </div>
 
-              <a
+              <Link
                 href="/admin/dosen"
                 className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
               >
                 Lihat Semua
                 <ArrowRight size={17} />
-              </a>
+              </Link>
             </div>
 
             <div className="grid gap-3">
