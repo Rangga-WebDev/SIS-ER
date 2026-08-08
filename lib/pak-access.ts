@@ -68,6 +68,26 @@ export async function getActivePakAssignment(
   });
 }
 
+// Penugasan aktif milik penilai untuk DUPAK dosen tertentu (basis akses detail dosen).
+export async function getActivePakAssignmentForLecturer(
+  pakUserId: string,
+  lecturerId: string,
+) {
+  return prisma.pakAssignment.findFirst({
+    where: {
+      pakUserId,
+      status: "ACTIVE",
+      submission: {
+        lecturerId,
+      },
+    },
+    select: {
+      id: true,
+      submissionId: true,
+    },
+  });
+}
+
 export async function hasDupakAccess({
   role,
   userId,

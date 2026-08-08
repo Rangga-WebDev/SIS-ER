@@ -3,6 +3,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getActivePakAssignmentForLecturer } from "@/lib/pak-access";
 import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -54,7 +55,17 @@ export async function GET(
   const isOwner =
     user.role === "DOSEN" && version.submission.lecturer.userId === user.id;
 
-  if (!isAdmin && !isOwner) {
+  // Penilai hanya boleh membuka versi dokumen dosen yang sedang ditugaskan kepadanya.
+  const isAssignedPak =
+    user.role === "TIM_PAK" &&
+    Boolean(
+      await getActivePakAssignmentForLecturer(
+        user.id,
+        version.submission.lecturer.id,
+      ),
+    );
+
+  if (!isAdmin && !isOwner && !isAssignedPak) {
     return NextResponse.json(
       { message: "Anda tidak memiliki akses ke versi dokumen ini." },
       { status: 403 },

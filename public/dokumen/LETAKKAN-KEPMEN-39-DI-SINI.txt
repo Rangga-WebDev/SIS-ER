@@ -1,0 +1,10 @@
+Letakkan file salinan Kepmen No. 39 di folder ini dengan nama:
+
+  kepmen-39.pdf
+
+sehingga bisa diakses aplikasi lewat URL: /dokumen/kepmen-39.pdf
+
+Jika ingin memakai nama file lain, sesuaikan konstanta KEPMEN_39_PDF_URL
+di components/dashboard/AppShell.tsx.
+
+Setelah PDF asli diletakkan, file ini boleh dihapus.

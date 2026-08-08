@@ -8,6 +8,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import LogoutButton from "@/components/auth/LogoutButton";
 import NotificationCenter from "@/components/dashboard/NotificationCenter";
+import FilePreviewModal from "@/components/documents/FilePreviewModal";
 import Image from "next/image";
 
 import {
@@ -50,6 +51,12 @@ type NavItem = {
   desc: string;
   icon: React.ReactNode;
 };
+
+// PLACEHOLDER: letakkan file PDF di folder public/ lalu cocokkan path ini.
+const KEPMEN_39_PDF_URL = "/dokumen/kepmen-39.pdf";
+
+// Role yang melihat tombol acuan Kepmen di sidebar.
+const KEPMEN_39_ROLES: Role[] = ["DOSEN", "TIM_PAK", "ADMIN"];
 
 const dosenNav: NavItem[] = [
   {
@@ -123,6 +130,12 @@ const pakNav: NavItem[] = [
     label: "Tugas Penilaian",
     desc: "Monitoring & penilaian DUPAK",
     icon: <ClipboardCheck size={19} />,
+  },
+  {
+    href: "/pak/dosen",
+    label: "Dosen Ditugaskan",
+    desc: "Profil & dokumen dosen",
+    icon: <UsersRound size={19} />,
   },
   {
     href: "/pak/riwayat",
@@ -327,22 +340,42 @@ export default function AppShell({
                 })}
               </nav>
 
-              <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
-                    <Sparkles size={18} />
-                  </div>
+              {KEPMEN_39_ROLES.includes(role) && (
+                <div className="mt-6">
+                  <p className="mb-3 px-2 text-xs font-black uppercase tracking-[0.24em] text-slate-400">
+                    Regulasi
+                  </p>
 
-                  <div>
-                    <p className="text-sm font-black text-slate-900">
-                      Industrial Mode
-                    </p>
-                    <p className="text-xs font-semibold text-slate-500">
-                      UI siap production
-                    </p>
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                        <Scale size={19} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-slate-900">
+                          Kepmen No. 39
+                        </p>
+                        <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">
+                          Acuan penilaian jabatan akademik
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <FilePreviewModal
+                        title="Salinan Kepmen No. 39"
+                        fileName="kepmen-39.pdf"
+                        mimeType="application/pdf"
+                        previewUrl={KEPMEN_39_PDF_URL}
+                        downloadUrl={KEPMEN_39_PDF_URL}
+                        buttonLabel="Lihat Dokumen"
+                        buttonClassName="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-600 px-4 py-2.5 text-xs font-black text-white transition hover:bg-amber-700"
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="border-t border-slate-100 p-4">

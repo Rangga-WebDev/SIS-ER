@@ -362,6 +362,7 @@ const assessorAdminEmails = [
   "darwispanguriseng@unismuh.ac.id",
   "nursalam.h@unismuh.ac.id",
   "sukri.syamsuri@uin-alauddin.ac.id",
+  "zulkiflisjamsir@unismuh.ac.id",
 ];
 
 async function seedAssessorAdmins() {

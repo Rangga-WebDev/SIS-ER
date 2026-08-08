@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarClock, StickyNote } from "lucide-react";
+import { ArrowLeft, CalendarClock, StickyNote, UserRound } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
@@ -162,6 +162,16 @@ export default async function PakTugasDetailPage({
                 NIDN/NUPTK: {submission.lecturer.nidnOrNuptk} • Jabatan saat
                 ini: {submission.lecturer.academicPosition}
               </p>
+
+              {isActive && (
+                <Link
+                  href={`/pak/dosen/${submission.lecturer.id}`}
+                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-sm font-black text-sky-700 transition hover:bg-sky-100"
+                >
+                  <UserRound size={16} />
+                  Lihat Detail Dosen & Dokumen
+                </Link>
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">

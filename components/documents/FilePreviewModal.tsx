@@ -20,6 +20,7 @@ type FilePreviewModalProps = {
   previewUrl: string;
   downloadUrl: string;
   buttonLabel?: string;
+  buttonClassName?: string;
 };
 
 export default function FilePreviewModal({
@@ -29,6 +30,7 @@ export default function FilePreviewModal({
   previewUrl,
   downloadUrl,
   buttonLabel = "Preview",
+  buttonClassName = "inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800",
 }: FilePreviewModalProps) {
   const [open, setOpen] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(true);
@@ -62,7 +64,7 @@ export default function FilePreviewModal({
           setLoadingPreview(true);
           setOpen(true);
         }}
-        className="inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition hover:bg-slate-800"
+        className={buttonClassName}
       >
         <Maximize2 size={15} />
         {buttonLabel}

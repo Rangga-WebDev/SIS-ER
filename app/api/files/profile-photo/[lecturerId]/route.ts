@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getActivePakAssignmentForLecturer } from "@/lib/pak-access";
 import { storageBucket, supabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -54,7 +55,12 @@ export async function GET(request: NextRequest) {
   const isAdmin = user.role === "ADMIN";
   const isOwner = user.role === "DOSEN" && lecturer.userId === user.id;
 
-  if (!isAdmin && !isOwner) {
+  // Penilai hanya boleh melihat foto dosen yang sedang ditugaskan kepadanya.
+  const isAssignedPak =
+    user.role === "TIM_PAK" &&
+    Boolean(await getActivePakAssignmentForLecturer(user.id, lecturer.id));
+
+  if (!isAdmin && !isOwner && !isAssignedPak) {
     return NextResponse.json(
       { message: "Anda tidak memiliki akses ke foto ini." },
       { status: 403 },
