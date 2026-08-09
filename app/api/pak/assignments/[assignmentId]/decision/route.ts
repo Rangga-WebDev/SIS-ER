@@ -7,7 +7,11 @@ import { prisma } from "@/lib/prisma";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { logAudit, recordStatusHistory } from "@/lib/audit";
 import type { DupakStatus } from "@/lib/app-types";
-import { computeAssessmentCompleteness, toCreditData } from "@/lib/pak-access";
+import {
+  computeAssessmentCompleteness,
+  loadReviewValidation,
+  toCreditData,
+} from "@/lib/pak-access";
 
 export const runtime = "nodejs";
 
@@ -106,14 +110,41 @@ export async function POST(
       toCreditData(submission.creditData),
     );
 
-    if (data.decision === "DITERIMA" && !completeness.isComplete) {
+    // Validasi per item/rincian: seluruh unit harus dinilai, status bermasalah
+    // harus berkomentar, dan tidak boleh tersisa saat keputusan Diterima.
+    const reviewValidation = await loadReviewValidation({
+      assignmentId: assignment.id,
+      submissionId: submission.id,
+      creditData: toCreditData(submission.creditData),
+    });
+
+    if (data.decision === "DITERIMA" && !reviewValidation.okForAccept) {
+      const firstIssue =
+        reviewValidation.issues[0] || reviewValidation.outstanding[0];
+
       return NextResponse.json(
         {
           message:
-            completeness.proposedCount === 0
-              ? "Belum ada angka kredit pengusul yang dapat dinilai."
-              : `Masih ada ${completeness.missingRows.length} baris kegiatan yang belum dinilai Tim Penilai.`,
-          missingRows: completeness.missingRows.slice(0, 10),
+            reviewValidation.progress.total === 0
+              ? "Belum ada item yang dapat dinilai pada pengajuan ini."
+              : `Penilaian belum lengkap: ${
+                  reviewValidation.issues.length +
+                  reviewValidation.outstanding.length
+                } item belum tuntas. ${firstIssue?.message || ""}`.trim(),
+          issues: [
+            ...reviewValidation.issues,
+            ...reviewValidation.outstanding,
+          ].slice(0, 10),
+        },
+        { status: 400 },
+      );
+    }
+
+    if (data.decision === "PERLU_REVISI" && !reviewValidation.okForRevision) {
+      return NextResponse.json(
+        {
+          message:
+            "Tandai minimal satu item berstatus Perlu Revisi/Tidak Sesuai lengkap dengan komentarnya sebelum meminta revisi.",
         },
         { status: 400 },
       );

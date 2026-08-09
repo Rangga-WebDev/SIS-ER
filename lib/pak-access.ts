@@ -1,6 +1,7 @@
 /** @format */
 
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 export {
   canKomiteSee,
   canSenateSee,
@@ -19,6 +20,12 @@ import {
   getProposerTotal,
   type DupakCreditData,
 } from "@/lib/dupak-template";
+import {
+  buildReviewUnits,
+  computeReviewValidation,
+  type DupakItemReviewData,
+  type ReviewValidation,
+} from "@/lib/dupak-review";
 
 export function toCreditData(value: unknown): DupakCreditData {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -26,6 +33,52 @@ export function toCreditData(value: unknown): DupakCreditData {
   }
 
   return value as DupakCreditData;
+}
+
+// Memuat unit penilaian + review milik satu penugasan lalu memvalidasi
+// kelengkapannya (dipakai keputusan dan pengesahan Tim PAK).
+export async function loadReviewValidation(options: {
+  assignmentId: string;
+  submissionId: string;
+  creditData: DupakCreditData;
+  tx?: Prisma.TransactionClient;
+}): Promise<ReviewValidation> {
+  const db = options.tx || prisma;
+
+  const [entries, reviews, evidences] = await Promise.all([
+    db.dupakItemEntry.findMany({
+      where: { submissionId: options.submissionId },
+      select: {
+        id: true,
+        rowCode: true,
+        title: true,
+        credit: true,
+        orderIndex: true,
+      },
+    }),
+    db.dupakItemReview.findMany({
+      where: { assignmentId: options.assignmentId },
+      select: {
+        rowCode: true,
+        entryKey: true,
+        assessedCredit: true,
+        status: true,
+        comment: true,
+      },
+    }),
+    db.dupakEvidence.findMany({
+      where: { dupakSubmissionId: options.submissionId },
+      select: { rowCode: true, evidenceUrl: true },
+    }),
+  ]);
+
+  const units = buildReviewUnits({
+    creditData: options.creditData,
+    entries,
+    evidences,
+  });
+
+  return computeReviewValidation(units, reviews as DupakItemReviewData[]);
 }
 
 export function computeAssessmentCompleteness(creditData: DupakCreditData) {

@@ -8,12 +8,24 @@ import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import AppShell from "@/components/dashboard/AppShell";
 import DupakPreview from "@/components/dupak/DupakPreview";
-import DupakAssessorFormClient from "@/components/admin/DupakAssessorFormClient";
+import AssessmentWorkbench, {
+  type AssessmentEntryItem,
+  type WorkbenchReview,
+} from "@/components/pak/AssessmentWorkbench";
 import PakDecisionForm from "@/components/pak/PakDecisionForm";
 import StatusTimeline from "@/components/workflow/StatusTimeline";
-import { computeAssessmentCompleteness, toCreditData } from "@/lib/pak-access";
+import { toCreditData } from "@/lib/pak-access";
+import {
+  buildReviewUnits,
+  computeReviewValidation,
+  reviewUnitKey,
+  type DupakItemReviewData,
+} from "@/lib/dupak-review";
 import type { DupakStatus } from "@/lib/app-types";
-import type { DupakPersonalData } from "@/lib/dupak-template";
+import {
+  DUPAK_TEMPLATE_ROWS,
+  type DupakPersonalData,
+} from "@/lib/dupak-template";
 
 function toObject<T>(value: unknown, fallback: T): T {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -55,6 +67,7 @@ export default async function PakTugasDetailPage({
     },
     include: {
       assessment: true,
+      itemReviews: true,
       submission: {
         include: {
           lecturer: {
@@ -65,6 +78,9 @@ export default async function PakTugasDetailPage({
                 },
               },
             },
+          },
+          itemEntries: {
+            orderBy: [{ rowCode: "asc" }, { orderIndex: "asc" }],
           },
           evidences: {
             orderBy: {
@@ -98,10 +114,107 @@ export default async function PakTugasDetailPage({
   const submission = assignment.submission;
   const status = submission.status as DupakStatus;
   const creditData = toCreditData(submission.creditData);
-  const completeness = computeAssessmentCompleteness(creditData);
 
   const isActive = assignment.status === "ACTIVE";
   const isRatified = assignment.assessment?.isRatified || false;
+
+  // Unit penilaian: per rincian jika ada, per baris jika hanya AK/bukti.
+  const reviewUnits = buildReviewUnits({
+    creditData,
+    entries: submission.itemEntries,
+    evidences: submission.evidences,
+  });
+
+  const reviewData: DupakItemReviewData[] = assignment.itemReviews.map(
+    (review) => ({
+      rowCode: review.rowCode,
+      entryKey: review.entryKey,
+      assessedCredit: review.assessedCredit,
+      status: review.status,
+      comment: review.comment,
+    }),
+  );
+
+  const reviewValidation = computeReviewValidation(reviewUnits, reviewData);
+
+  // Total AK dinilai dihitung dari review milik unit yang masih relevan.
+  const unitKeySet = new Set(
+    reviewUnits.map((unit) => reviewUnitKey(unit.rowCode, unit.entryKey)),
+  );
+
+  const assessedTotal =
+    Math.round(
+      reviewData
+        .filter((review) =>
+          unitKeySet.has(reviewUnitKey(review.rowCode, review.entryKey)),
+        )
+        .reduce(
+          (sum, review) =>
+            sum +
+            (Number(String(review.assessedCredit || "").replace(",", ".")) ||
+              0),
+          0,
+        ) * 100,
+    ) / 100;
+
+  const rowLabelMap = new Map(
+    DUPAK_TEMPLATE_ROWS.map((row) => [row.code, row.label]),
+  );
+
+  const rowEvidences: Record<string, string> = {};
+  for (const evidence of submission.evidences) {
+    if (evidence.evidenceUrl && !rowEvidences[evidence.rowCode]) {
+      rowEvidences[evidence.rowCode] = evidence.evidenceUrl;
+    }
+  }
+
+  const tableEntries: AssessmentEntryItem[] = submission.itemEntries.map(
+    (entry) => ({
+      id: entry.id,
+      rowCode: entry.rowCode,
+      title: entry.title,
+      subCategory: entry.subCategory,
+      description: entry.description,
+      activityYear: entry.activityYear,
+      credit: entry.credit,
+      evidenceUrl: entry.evidenceUrl,
+      orderIndex: entry.orderIndex,
+    }),
+  );
+
+  const initialReviews: Record<string, WorkbenchReview> = {};
+  for (const review of assignment.itemReviews) {
+    initialReviews[reviewUnitKey(review.rowCode, review.entryKey)] = {
+      assessedCredit: review.assessedCredit || "",
+      status: (review.status || "") as WorkbenchReview["status"],
+      comment: review.comment || "",
+    };
+  }
+
+  // Catatan revisi otomatis dari komentar item bermasalah.
+  const entryTitleMap = new Map(
+    submission.itemEntries.map((entry) => [entry.id, entry.title]),
+  );
+
+  const suggestedRevisionNote = assignment.itemReviews
+    .filter(
+      (review) =>
+        (review.status === "PERLU_REVISI" ||
+          review.status === "TIDAK_SESUAI") &&
+        String(review.comment || "").trim(),
+    )
+    .map((review) => {
+      const rowLabel = rowLabelMap.get(review.rowCode) || review.rowCode;
+      const entryTitle = review.entryKey
+        ? entryTitleMap.get(review.entryKey)
+        : null;
+      const label = entryTitle ? `${rowLabel} — ${entryTitle}` : rowLabel;
+      return `• ${label}: ${review.comment}`;
+    })
+    .join("\n");
+
+  const pendingCount =
+    reviewValidation.issues.length + reviewValidation.outstanding.length;
 
   await logAudit({
     actorId: user.id,
@@ -212,10 +325,12 @@ export default async function PakTugasDetailPage({
           histories={submission.statusHistories}
         />
 
-        <DupakAssessorFormClient
-          dupakId={submission.id}
+        <AssessmentWorkbench
+          assignmentId={assignment.id}
           creditData={creditData}
-          endpoint={`/api/pak/dupak/${submission.id}/assessor`}
+          entries={tableEntries}
+          rowEvidences={rowEvidences}
+          initialReviews={initialReviews}
           readOnly={!isActive || isRatified}
         />
 
@@ -224,26 +339,36 @@ export default async function PakTugasDetailPage({
             assignmentId={assignment.id}
             decision={assignment.assessment?.decision || null}
             isRatified={isRatified}
-            isComplete={completeness.isComplete}
-            missingCount={completeness.missingRows.length}
-            totalScore={completeness.totalScore}
+            isComplete={reviewValidation.okForAccept}
+            missingCount={pendingCount}
+            totalScore={reviewValidation.progress.total > 0 ? assessedTotal : 0}
+            suggestedRevisionNote={suggestedRevisionNote || undefined}
           />
         )}
 
-        <DupakPreview
-          nomor={submission.nomor}
-          instansi={submission.instansi}
-          masaPenilaianStart={submission.masaPenilaianStart}
-          masaPenilaianEnd={submission.masaPenilaianEnd}
-          personalData={toObject<DupakPersonalData>(
-            submission.personalData,
-            {},
-          )}
-          creditData={creditData}
-          supportNotes={submission.supportNotes}
-          evidences={evidences}
-          showEvidenceColumn
-        />
+        <details className="rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+          <summary className="cursor-pointer select-none rounded-[2rem] px-6 py-5 text-lg font-black text-slate-800 transition hover:bg-slate-50">
+            Lihat Format DUPAK Lengkap (Lampiran)
+          </summary>
+
+          <div className="px-2 pb-2">
+            <DupakPreview
+              nomor={submission.nomor}
+              instansi={submission.instansi}
+              masaPenilaianStart={submission.masaPenilaianStart}
+              masaPenilaianEnd={submission.masaPenilaianEnd}
+              personalData={toObject<DupakPersonalData>(
+                submission.personalData,
+                {},
+              )}
+              creditData={creditData}
+              supportNotes={submission.supportNotes}
+              evidences={evidences}
+              entries={submission.itemEntries}
+              showEvidenceColumn
+            />
+          </div>
+        </details>
       </div>
     </AppShell>
   );

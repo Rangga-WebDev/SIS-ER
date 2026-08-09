@@ -20,6 +20,7 @@ type Props = {
   isComplete: boolean;
   missingCount: number;
   totalScore: number;
+  suggestedRevisionNote?: string;
 };
 
 export default function PakDecisionForm({
@@ -29,6 +30,7 @@ export default function PakDecisionForm({
   isComplete,
   missingCount,
   totalScore,
+  suggestedRevisionNote,
 }: Props) {
   const router = useRouter();
 
@@ -38,6 +40,7 @@ export default function PakDecisionForm({
   const [internalNote, setInternalNote] = useState("");
   const [lecturerRevisionNote, setLecturerRevisionNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmRatify, setConfirmRatify] = useState(false);
 
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -164,7 +167,13 @@ export default function PakDecisionForm({
       <div className="mt-5 grid gap-3 md:grid-cols-2">
         <button
           type="button"
-          onClick={() => setChoice("PERLU_REVISI")}
+          onClick={() => {
+            setChoice("PERLU_REVISI");
+            // Prefill dari komentar per item agar dosen menerima catatan utuh.
+            if (!lecturerRevisionNote.trim() && suggestedRevisionNote) {
+              setLecturerRevisionNote(suggestedRevisionNote);
+            }
+          }}
           className={`rounded-2xl border p-4 text-left transition ${
             choice === "PERLU_REVISI"
               ? "border-amber-300 bg-amber-50 text-amber-800"
@@ -261,7 +270,7 @@ export default function PakDecisionForm({
         <button
           type="button"
           disabled={saving || decision !== "DITERIMA" || !isComplete}
-          onClick={ratify}
+          onClick={() => setConfirmRatify(true)}
           title={
             decision !== "DITERIMA"
               ? "Simpan keputusan Diterima terlebih dahulu."
@@ -275,6 +284,43 @@ export default function PakDecisionForm({
           Sahkan Penilaian
         </button>
       </div>
+
+      {confirmRatify && (
+        <div className="mt-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5">
+          <p className="text-base font-black text-emerald-900">
+            Konfirmasi Pengesahan Penilaian
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-6 text-emerald-800">
+            Total angka kredit dinilai: <strong>{totalScore}</strong>. Setelah
+            disahkan, seluruh penilaian akan dikunci dan tidak dapat diubah
+            kecuali dibuka kembali oleh Admin. Pastikan seluruh item sudah Anda
+            periksa.
+          </p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                setConfirmRatify(false);
+                void ratify();
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-700 px-6 py-3 text-sm font-black text-white transition hover:bg-emerald-800 disabled:opacity-60"
+            >
+              <LockKeyhole size={18} />
+              Ya, Sahkan Sekarang
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setConfirmRatify(false)}
+              className="rounded-2xl border border-emerald-300 bg-white px-6 py-3 text-sm font-black text-emerald-800 transition hover:bg-emerald-100"
+            >
+              Batal, Periksa Lagi
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

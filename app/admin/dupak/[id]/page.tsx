@@ -96,6 +96,19 @@ export default async function AdminDupakDetailPage({
           uploadedAt: true,
         },
       },
+      itemEntries: {
+        orderBy: [{ rowCode: "asc" }, { orderIndex: "asc" }],
+        select: {
+          id: true,
+          rowCode: true,
+          title: true,
+          subCategory: true,
+          activityYear: true,
+          credit: true,
+          evidenceUrl: true,
+          orderIndex: true,
+        },
+      },
       pakAssignments: {
         orderBy: {
           createdAt: "desc",
@@ -359,6 +372,7 @@ export default async function AdminDupakDetailPage({
           creditData={toObject<DupakCreditData>(submission.creditData, {})}
           supportNotes={submission.supportNotes}
           evidences={evidences}
+          entries={submission.itemEntries}
           showEvidenceColumn
         />
       </div>

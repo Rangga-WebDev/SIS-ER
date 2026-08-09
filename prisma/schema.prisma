@@ -107,6 +107,15 @@ enum SenateDecision {
   DIKEMBALIKAN
 }
 
+// Status penilaian per item/sub-item oleh Tim PAK.
+// Tidak ada baris review = Belum Dinilai.
+enum DupakReviewStatus {
+  SESUAI
+  PERLU_REVISI
+  TIDAK_SESUAI
+  DIREVISI_DOSEN
+}
+
 model User {
   id           String        @id @default(cuid())
   email        String        @unique
@@ -375,6 +384,9 @@ model DupakSubmission {
   integrityReviews   IntegrityReview[]
   senateReviews      SenateReview[]
   statusHistories    StatusHistory[]
+  itemEntries        DupakItemEntry[]
+  itemReviews        DupakItemReview[]
+  reviewHistories    DupakReviewHistory[]
 
   submittedAt DateTime?
   verifiedAt  DateTime?
@@ -461,7 +473,8 @@ model PakAssignment {
   cancelledAt        DateTime?
   cancellationReason String?
 
-  assessment PakAssessment?
+  assessment  PakAssessment?
+  itemReviews DupakItemReview[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -495,11 +508,101 @@ model PakAssessment {
   reopenedAt   DateTime?
   reopenReason String?
 
+  // Posisi item terakhir yang dibuka penilai (rowCode::entryKey) agar dapat dilanjutkan.
+  lastPosition String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([decision])
   @@index([isRatified])
+}
+
+// Rincian kegiatan (sub-item) yang diinput dosen pada satu baris DUPAK.
+// Contoh: daftar artikel jurnal pada baris "Karya ilmiah jurnal internasional".
+model DupakItemEntry {
+  id String @id @default(cuid())
+
+  submissionId String
+  submission   DupakSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  rowCode String
+
+  title        String
+  subCategory  String?
+  description  String?
+  activityYear String?
+
+  // Angka kredit per rincian, disimpan sebagai string desimal (koma/titik).
+  credit String?
+
+  evidenceUrl String?
+
+  orderIndex Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([submissionId, rowCode])
+  @@index([submissionId])
+}
+
+// Penilaian Tim PAK per item / per rincian.
+// entryKey "" = penilaian level baris; selain itu berisi id DupakItemEntry.
+model DupakItemReview {
+  id String @id @default(cuid())
+
+  submissionId String
+  submission   DupakSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  assignmentId String
+  assignment   PakAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  rowCode  String
+  entryKey String @default("")
+
+  assessedCredit String?
+  status         DupakReviewStatus?
+  comment        String?
+
+  assessorId    String?
+  assessorEmail String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, rowCode, entryKey])
+  @@index([submissionId, rowCode])
+  @@index([assignmentId])
+  @@index([status])
+}
+
+// Jejak historis perubahan rincian/penilaian (append-only, tidak pernah dihapus).
+model DupakReviewHistory {
+  id String @id @default(cuid())
+
+  submissionId String
+  submission   DupakSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  assignmentId String?
+
+  rowCode  String
+  entryKey String @default("")
+
+  // "ASSESSMENT" = snapshot penilaian sebelum berubah, "ENTRY" = snapshot rincian dosen.
+  kind String
+
+  snapshot Json
+
+  reason     String?
+  actorEmail String?
+  actorRole  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([submissionId, rowCode])
+  @@index([assignmentId])
+  @@index([createdAt])
 }
 
 model ExaminationMinute {

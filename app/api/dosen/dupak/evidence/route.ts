@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isLecturerEditable } from "@/lib/dupak-workflow";
+import { flagLecturerRevision } from "@/lib/dupak-entries";
 import type { DupakStatus } from "@/lib/app-types";
 import { DUPAK_TEMPLATE_ROWS } from "@/lib/dupak-template";
 
@@ -193,6 +194,17 @@ export async function POST(request: Request) {
             uploaderEmail: user.email,
           },
         });
+
+    // Bukti level baris berubah: tandai penilaian bermasalah agar dinilai ulang.
+    await prisma.$transaction((tx) =>
+      flagLecturerRevision(tx, {
+        submissionId: dupakSubmission.id,
+        rowCode,
+        entryKey: "",
+        actorEmail: user.email,
+        reason: "Bukti dokumen baris diperbarui dosen.",
+      }),
+    );
 
     await prisma.activityLog.create({
       data: {

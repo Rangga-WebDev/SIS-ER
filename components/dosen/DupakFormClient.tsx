@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
@@ -23,6 +23,7 @@ import {
   DUPAK_TEMPLATE_ROWS,
   getAssessorTotal,
   getProposerTotal,
+  sumEntryCredits,
   type DupakCreditData,
   type DupakPersonalData,
 } from "@/lib/dupak-template";
@@ -31,6 +32,10 @@ import FilePreviewModal from "@/components/documents/FilePreviewModal";
 import DupakEvidenceLinkCell, {
   type DupakEvidenceItem,
 } from "@/components/dosen/DupakEvidenceLinkCell";
+import DupakRowEntriesPanel, {
+  type DupakEntryItem,
+  type LecturerReviewItem,
+} from "@/components/dosen/DupakRowEntriesPanel";
 
 type InitialDupak = {
   nomor: string;
@@ -42,6 +47,8 @@ type InitialDupak = {
   supportNotes: string;
   currentStep: number;
   evidences: DupakEvidenceItem[];
+  entries: DupakEntryItem[];
+  reviews: LecturerReviewItem[];
 };
 
 type Props = {
@@ -83,6 +90,23 @@ export default function DupakFormClient({
   const [form, setForm] = useState<InitialDupak>({
     ...initialData,
     evidences: initialData.evidences || [],
+    entries: initialData.entries || [],
+    reviews: initialData.reviews || [],
+  });
+
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => {
+    // Baris yang sudah punya rincian atau catatan revisi dibuka otomatis.
+    const opened = new Set<string>();
+    for (const entry of initialData.entries || []) opened.add(entry.rowCode);
+    for (const review of initialData.reviews || []) {
+      if (
+        review.status === "PERLU_REVISI" ||
+        review.status === "TIDAK_SESUAI"
+      ) {
+        opened.add(review.rowCode);
+      }
+    }
+    return opened;
   });
 
   const inputRows = useMemo(
@@ -177,6 +201,66 @@ export default function DupakFormClient({
       return {
         ...current,
         evidences: [evidence, ...filtered],
+      };
+    });
+  };
+
+  const entriesByRow = useMemo(() => {
+    const map = new Map<string, DupakEntryItem[]>();
+
+    for (const entry of form.entries) {
+      const list = map.get(entry.rowCode) || [];
+      list.push(entry);
+      map.set(entry.rowCode, list);
+    }
+
+    return map;
+  }, [form.entries]);
+
+  // Daftar item yang diminta revisi oleh Tim PAK (ditampilkan ke dosen).
+  const flaggedReviews = useMemo(
+    () =>
+      form.reviews.filter(
+        (review) =>
+          review.status === "PERLU_REVISI" || review.status === "TIDAK_SESUAI",
+      ),
+    [form.reviews],
+  );
+
+  const rowLabelOf = (rowCode: string) =>
+    DUPAK_TEMPLATE_ROWS.find((row) => row.code === rowCode)?.label || rowCode;
+
+  const entryTitleOf = (entryKey: string) =>
+    form.entries.find((entry) => entry.id === entryKey)?.title || null;
+
+  const toggleRow = (rowCode: string) => {
+    setExpandedRows((current) => {
+      const next = new Set(current);
+      if (next.has(rowCode)) next.delete(rowCode);
+      else next.add(rowCode);
+      return next;
+    });
+  };
+
+  // Rincian berubah: perbarui daftar + AK pengusul baru baris (dihitung otomatis).
+  const handleEntriesChange = (rowCode: string, next: DupakEntryItem[]) => {
+    setForm((current) => {
+      const others = current.entries.filter(
+        (entry) => entry.rowCode !== rowCode,
+      );
+      const rowEntries = next.filter((entry) => entry.rowCode === rowCode);
+
+      return {
+        ...current,
+        entries: [...others, ...rowEntries],
+        creditData: {
+          ...current.creditData,
+          [rowCode]: {
+            ...current.creditData[rowCode],
+            newProposer:
+              rowEntries.length > 0 ? String(sumEntryCredits(rowEntries)) : "",
+          },
+        },
       };
     });
   };
@@ -398,11 +482,42 @@ export default function DupakFormClient({
       {step === 3 && (
         <Card title="Unsur yang Dinilai dan Bukti Dokumen">
           <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm font-bold leading-6 text-sky-800">
-            Pada setiap baris kegiatan, isi angka kredit dan unggah bukti
-            dokumen pendukung. Bukti dapat berupa PDF, JPG, JPEG, atau PNG
-            maksimal 5 MB. Kolom Tim Penilai hanya diisi oleh tim penilai
-            melalui portal admin.
+            Pada setiap baris kegiatan, klik tombol “Rincian” untuk mencatat
+            setiap kegiatan satu per satu (misal per judul karya ilmiah atau per
+            mahasiswa bimbingan) lengkap dengan link bukti Google Drive. Angka
+            kredit “Baru” dihitung otomatis dari jumlah rincian. Kolom Tim
+            Penilai hanya diisi oleh Tim PAK.
           </div>
+
+          {flaggedReviews.length > 0 && (
+            <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-black text-amber-900">
+                {flaggedReviews.length} item perlu Anda perbaiki menurut Tim
+                PAK:
+              </p>
+
+              <ul className="mt-2 space-y-1.5">
+                {flaggedReviews.map((review) => {
+                  const entryTitle = review.entryKey
+                    ? entryTitleOf(review.entryKey)
+                    : null;
+
+                  return (
+                    <li
+                      key={`${review.rowCode}-${review.entryKey}`}
+                      className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-semibold leading-6 text-slate-700"
+                    >
+                      <span className="font-black text-amber-800">
+                        {rowLabelOf(review.rowCode)}
+                        {entryTitle ? ` — ${entryTitle}` : ""}:
+                      </span>{" "}
+                      {review.comment || "Perlu diperbaiki."}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200">
             <table className="w-full min-w-[1250px] text-left text-sm">
@@ -457,6 +572,12 @@ export default function DupakFormClient({
                 {DUPAK_TEMPLATE_ROWS.map((row) => {
                   const value = form.creditData[row.code];
                   const evidence = evidenceMap.get(row.code) || null;
+                  const rowEntries = entriesByRow.get(row.code) || [];
+                  const hasEntries = rowEntries.length > 0;
+                  const isExpanded = expandedRows.has(row.code);
+                  const rowFlagged = flaggedReviews.some(
+                    (review) => review.rowCode === row.code,
+                  );
 
                   if (row.type === "SECTION") {
                     return (
@@ -472,80 +593,133 @@ export default function DupakFormClient({
                   }
 
                   return (
-                    <tr
-                      key={row.code}
-                      className={
-                        row.type === "TOTAL" ? "bg-slate-100" : "bg-white"
-                      }
-                    >
-                      <td
-                        className={`border border-slate-200 p-3 ${
-                          row.type === "TOTAL"
-                            ? "font-black text-slate-950"
-                            : "font-semibold text-slate-700"
-                        }`}
-                        style={{ paddingLeft: `${12 + row.level * 18}px` }}
+                    <Fragment key={row.code}>
+                      <tr
+                        className={
+                          row.type === "TOTAL" ? "bg-slate-100" : "bg-white"
+                        }
                       >
-                        {row.label}
-                      </td>
+                        <td
+                          className={`border border-slate-200 p-3 ${
+                            row.type === "TOTAL"
+                              ? "font-black text-slate-950"
+                              : "font-semibold text-slate-700"
+                          }`}
+                          style={{ paddingLeft: `${12 + row.level * 18}px` }}
+                        >
+                          {row.type === "ITEM" ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span>{row.label}</span>
 
-                      {row.type === "TOTAL" ? (
-                        (() => {
-                          const subtotal = subtotals[row.code];
+                              <button
+                                type="button"
+                                onClick={() => toggleRow(row.code)}
+                                className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-black transition ${
+                                  rowFlagged
+                                    ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                    : hasEntries
+                                      ? "border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
+                                      : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"
+                                }`}
+                              >
+                                {isExpanded ? "Tutup" : "Rincian"}
+                                {hasEntries ? ` (${rowEntries.length})` : ""}
+                                {rowFlagged ? " !" : ""}
+                              </button>
+                            </div>
+                          ) : (
+                            row.label
+                          )}
+                        </td>
 
-                          return (
-                            <>
-                              <ReadOnlyCell
-                                value={subtotal?.oldProposer || 0}
-                              />
-                              <ReadOnlyCell
-                                value={subtotal?.newProposer || 0}
-                              />
-                              <ReadOnlyCell
-                                value={subtotal?.proposerTotal || 0}
-                              />
-                              <ReadOnlyCell
-                                value={subtotal?.oldAssessor || 0}
-                              />
-                              <ReadOnlyCell
-                                value={subtotal?.newAssessor || 0}
-                              />
-                              <ReadOnlyCell
-                                value={subtotal?.assessorTotal || 0}
-                              />
-                              <td className="border border-slate-200 p-3 text-center text-xs font-bold text-slate-400">
-                                Tidak perlu bukti
+                        {row.type === "TOTAL" ? (
+                          (() => {
+                            const subtotal = subtotals[row.code];
+
+                            return (
+                              <>
+                                <ReadOnlyCell
+                                  value={subtotal?.oldProposer || 0}
+                                />
+                                <ReadOnlyCell
+                                  value={subtotal?.newProposer || 0}
+                                />
+                                <ReadOnlyCell
+                                  value={subtotal?.proposerTotal || 0}
+                                />
+                                <ReadOnlyCell
+                                  value={subtotal?.oldAssessor || 0}
+                                />
+                                <ReadOnlyCell
+                                  value={subtotal?.newAssessor || 0}
+                                />
+                                <ReadOnlyCell
+                                  value={subtotal?.assessorTotal || 0}
+                                />
+                                <td className="border border-slate-200 p-3 text-center text-xs font-bold text-slate-400">
+                                  Tidak perlu bukti
+                                </td>
+                              </>
+                            );
+                          })()
+                        ) : (
+                          <>
+                            <InputCell
+                              value={value?.oldProposer || ""}
+                              onChange={(v) =>
+                                updateCredit(row.code, "oldProposer", v)
+                              }
+                            />
+                            {hasEntries ? (
+                              <td
+                                className="border border-slate-200 bg-sky-50/60 p-2 text-center font-black text-sky-800"
+                                title="Dihitung otomatis dari jumlah rincian kegiatan"
+                              >
+                                {value?.newProposer || "0"}
+                                <span className="block text-[10px] font-bold text-sky-500">
+                                  otomatis
+                                </span>
                               </td>
-                            </>
-                          );
-                        })()
-                      ) : (
-                        <>
-                          <InputCell
-                            value={value?.oldProposer || ""}
-                            onChange={(v) =>
-                              updateCredit(row.code, "oldProposer", v)
-                            }
-                          />
-                          <InputCell
-                            value={value?.newProposer || ""}
-                            onChange={(v) =>
-                              updateCredit(row.code, "newProposer", v)
-                            }
-                          />
-                          <ReadOnlyCell value={getProposerTotal(value)} />
-                          <StaticCell value={value?.oldAssessor} />
-                          <StaticCell value={value?.newAssessor} />
-                          <ReadOnlyCell value={getAssessorTotal(value)} />
-                          <DupakEvidenceLinkCell
-                            rowCode={row.code}
-                            rowLabel={row.label}
-                            evidence={evidence}
-                            onUploaded={upsertEvidence}
-                          />
-                        </>
+                            ) : (
+                              <InputCell
+                                value={value?.newProposer || ""}
+                                onChange={(v) =>
+                                  updateCredit(row.code, "newProposer", v)
+                                }
+                              />
+                            )}
+                            <ReadOnlyCell value={getProposerTotal(value)} />
+                            <StaticCell value={value?.oldAssessor} />
+                            <StaticCell value={value?.newAssessor} />
+                            <ReadOnlyCell value={getAssessorTotal(value)} />
+                            <DupakEvidenceLinkCell
+                              rowCode={row.code}
+                              rowLabel={row.label}
+                              evidence={evidence}
+                              onUploaded={upsertEvidence}
+                            />
+                          </>
+                        )}
+                      </tr>
+
+                      {row.type === "ITEM" && isExpanded && (
+                        <tr className="bg-slate-50/40">
+                          <td
+                            colSpan={8}
+                            className="border border-slate-200 p-3"
+                          >
+                            <DupakRowEntriesPanel
+                              rowCode={row.code}
+                              rowLabel={row.label}
+                              entries={form.entries}
+                              reviews={form.reviews}
+                              readOnly={readOnly}
+                              onEntriesChange={handleEntriesChange}
+                            />
+                          </td>
+                        </tr>
                       )}
-                    </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -576,6 +750,7 @@ export default function DupakFormClient({
           personalData={form.personalData}
           creditData={form.creditData}
           supportNotes={form.supportNotes}
+          entries={form.entries}
         />
       )}
 

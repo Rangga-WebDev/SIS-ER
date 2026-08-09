@@ -665,3 +665,185 @@ export function computeDupakSubtotals(
 
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Rincian kegiatan (sub-item) per baris DUPAK — pola SISTER/LLDIKTI.
+// ---------------------------------------------------------------------------
+
+export type DupakItemEntryData = {
+  id: string;
+  rowCode: string;
+  title: string;
+  subCategory?: string | null;
+  description?: string | null;
+  activityYear?: string | null;
+  credit?: string | null;
+  evidenceUrl?: string | null;
+  orderIndex?: number;
+};
+
+export type DupakDetailProfile = {
+  key: string;
+  titleLabel: string;
+  titlePlaceholder: string;
+  subCategoryLabel?: string;
+  descriptionLabel?: string;
+  descriptionPlaceholder?: string;
+  yearLabel: string;
+};
+
+const DETAIL_PROFILES: Record<string, DupakDetailProfile> = {
+  PENDIDIKAN: {
+    key: "PENDIDIKAN",
+    titleLabel: "Program studi / pendidikan",
+    titlePlaceholder: "Contoh: S3 Ilmu Pendidikan",
+    descriptionLabel: "Perguruan tinggi / penyelenggara",
+    descriptionPlaceholder: "Contoh: Universitas Negeri Makassar",
+    yearLabel: "Tahun lulus",
+  },
+  PENGAJARAN: {
+    key: "PENGAJARAN",
+    titleLabel: "Nama mata kuliah",
+    titlePlaceholder: "Contoh: Statistika Pendidikan",
+    subCategoryLabel: "Jenjang / program",
+    descriptionLabel: "SKS dan kelas",
+    descriptionPlaceholder: "Contoh: 3 SKS, 2 kelas",
+    yearLabel: "Semester / tahun akademik",
+  },
+  BIMBINGAN: {
+    key: "BIMBINGAN",
+    titleLabel: "Nama mahasiswa / kegiatan",
+    titlePlaceholder: "Contoh: Andi Saputra (NIM 105401...)",
+    descriptionLabel: "Judul tugas akhir / uraian",
+    descriptionPlaceholder: "Contoh: Judul skripsi yang dibimbing",
+    yearLabel: "Semester / tahun",
+  },
+  PENELITIAN: {
+    key: "PENELITIAN",
+    titleLabel: "Judul karya ilmiah",
+    titlePlaceholder: "Contoh: Analisis Model Pembelajaran ...",
+    subCategoryLabel: "Kategori publikasi",
+    descriptionLabel: "Nama jurnal / penerbit / penyelenggara",
+    descriptionPlaceholder: "Contoh: Jurnal Pendidikan Indonesia, Vol. 12",
+    yearLabel: "Tahun terbit",
+  },
+  PENGABDIAN: {
+    key: "PENGABDIAN",
+    titleLabel: "Nama kegiatan pengabdian",
+    titlePlaceholder: "Contoh: Pelatihan literasi digital guru SD",
+    descriptionLabel: "Lokasi / mitra kegiatan",
+    descriptionPlaceholder: "Contoh: Desa Moncongloe, Kab. Maros",
+    yearLabel: "Tahun kegiatan",
+  },
+  PENUNJANG: {
+    key: "PENUNJANG",
+    titleLabel: "Nama kegiatan / organisasi",
+    titlePlaceholder: "Contoh: Panitia Wisuda Periode I",
+    descriptionLabel: "Peran / jabatan",
+    descriptionPlaceholder: "Contoh: Ketua / Anggota",
+    yearLabel: "Tahun kegiatan",
+  },
+  UMUM: {
+    key: "UMUM",
+    titleLabel: "Nama kegiatan",
+    titlePlaceholder: "Tuliskan nama kegiatan",
+    descriptionLabel: "Uraian singkat",
+    descriptionPlaceholder: "Uraian singkat kegiatan (opsional)",
+    yearLabel: "Tahun kegiatan",
+  },
+};
+
+const BIMBINGAN_ROW_CODES = new Set([
+  "MEMBIMBING_SEMINAR",
+  "MEMBIMBING_KKN_PKN",
+  "PEMBIMBING_UTAMA_DISERTASI",
+  "PEMBIMBING_UTAMA_THESIS",
+  "PEMBIMBING_UTAMA_SKRIPSI",
+  "PEMBIMBING_PENDAMPING_DISERTASI",
+  "PEMBIMBING_PENDAMPING_THESIS",
+  "PEMBIMBING_PENDAMPING_SKRIPSI",
+  "KETUA_PENGUJI",
+  "ANGGOTA_PENGUJI",
+]);
+
+const SECTION_PROFILE_KEYS: Record<string, string> = {
+  PENDIDIKAN: "PENDIDIKAN",
+  PELAKSANAAN_PENDIDIKAN: "UMUM",
+  PELAKSANAAN_PENELITIAN: "PENELITIAN",
+  PENGABDIAN: "PENGABDIAN",
+  PENUNJANG: "PENUNJANG",
+};
+
+// Saran kategori publikasi sesuai praktik Kepmen 39/2021 (SINTA, Scopus, dst).
+const ROW_SUB_CATEGORY_SUGGESTIONS: Record<string, string[]> = {
+  JURNAL_INTERNASIONAL: [
+    "Jurnal Internasional Bereputasi (Scopus/WoS)",
+    "Jurnal Internasional Terindeks Basis Data Internasional",
+    "Jurnal Internasional",
+  ],
+  JURNAL_NASIONAL_TERAKREDITASI: [
+    "SINTA 1",
+    "SINTA 2",
+    "SINTA 3",
+    "SINTA 4",
+    "SINTA 5",
+    "SINTA 6",
+  ],
+  JURNAL_NASIONAL_TIDAK_TERAKREDITASI: [
+    "Jurnal Nasional ber-ISSN",
+    "Jurnal Nasional",
+  ],
+  SEMINAR_INTERNASIONAL: [
+    "Prosiding Internasional Terindeks (Scopus/WoS)",
+    "Prosiding Internasional",
+  ],
+  SEMINAR_NASIONAL: ["Prosiding Nasional ber-ISBN/ISSN", "Prosiding Nasional"],
+  MONOGRAF: ["Monograf ber-ISBN"],
+  BUKU_REFERENSI: ["Buku Referensi ber-ISBN", "Book Chapter"],
+  PATEN_INTERNASIONAL: ["Paten", "Paten Sederhana"],
+  PATEN_NASIONAL: ["Paten", "Paten Sederhana", "Hak Cipta", "Desain Industri"],
+  BUKU_AJAR: ["Buku Ajar ber-ISBN", "Buku Ajar"],
+};
+
+const rowSectionMap: Record<string, string> = (() => {
+  const map: Record<string, string> = {};
+  let currentSection = "";
+
+  for (const row of DUPAK_TEMPLATE_ROWS) {
+    if (row.type === "SECTION") {
+      currentSection = row.code;
+      continue;
+    }
+
+    map[row.code] = currentSection;
+  }
+
+  return map;
+})();
+
+export function getDupakRowSectionCode(rowCode: string) {
+  return rowSectionMap[rowCode] || "";
+}
+
+export function getRowDetailProfile(rowCode: string): DupakDetailProfile {
+  if (rowCode === "PERKULIAHAN_TUTORIAL") return DETAIL_PROFILES.PENGAJARAN;
+  if (BIMBINGAN_ROW_CODES.has(rowCode)) return DETAIL_PROFILES.BIMBINGAN;
+
+  const sectionCode = getDupakRowSectionCode(rowCode);
+  const profileKey = SECTION_PROFILE_KEYS[sectionCode] || "UMUM";
+
+  return DETAIL_PROFILES[profileKey] || DETAIL_PROFILES.UMUM;
+}
+
+export function getRowSubCategorySuggestions(rowCode: string): string[] {
+  return ROW_SUB_CATEGORY_SUGGESTIONS[rowCode] || [];
+}
+
+export function sumEntryCredits(entries: Pick<DupakItemEntryData, "credit">[]) {
+  const total = entries.reduce(
+    (sum, entry) => sum + getNumberValue(entry.credit || ""),
+    0,
+  );
+
+  return round2(total);
+}

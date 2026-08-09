@@ -41,6 +41,22 @@ export default async function DosenDupakPage() {
       lecturerId: lecturer.id,
     },
     include: {
+      itemEntries: {
+        orderBy: [{ rowCode: "asc" }, { orderIndex: "asc" }],
+      },
+      itemReviews: {
+        where: {
+          assignment: {
+            status: "ACTIVE",
+          },
+        },
+        select: {
+          rowCode: true,
+          entryKey: true,
+          status: true,
+          comment: true,
+        },
+      },
       evidences: {
         orderBy: {
           uploadedAt: "desc",
@@ -95,6 +111,44 @@ export default async function DosenDupakPage() {
       uploadedAt: evidence.uploadedAt.toISOString(),
     })) || [];
 
+  const status = (submission?.status || "DRAFT") as DupakStatus;
+  const editable = isLecturerEditable(status);
+
+  const entries =
+    submission?.itemEntries.map((entry) => ({
+      id: entry.id,
+      rowCode: entry.rowCode,
+      title: entry.title,
+      subCategory: entry.subCategory,
+      description: entry.description,
+      activityYear: entry.activityYear,
+      credit: entry.credit,
+      evidenceUrl: entry.evidenceUrl,
+      orderIndex: entry.orderIndex,
+    })) || [];
+
+  // Komentar per item hanya ditampilkan setelah Tim PAK meminta revisi
+  // (atau dosen sedang/telah mengirim ulang) agar penilaian berjalan tidak bocor.
+  const showItemReviews =
+    status === "PERLU_REVISI_TIM_PAK" ||
+    status === "DIKIRIM_ULANG_SETELAH_REVISI" ||
+    status === "REVISION";
+
+  const reviews = showItemReviews
+    ? (submission?.itemReviews || [])
+        .filter((review) => review.status)
+        .map((review) => ({
+          rowCode: review.rowCode,
+          entryKey: review.entryKey,
+          status: review.status as
+            | "SESUAI"
+            | "PERLU_REVISI"
+            | "TIDAK_SESUAI"
+            | "DIREVISI_DOSEN",
+          comment: review.comment,
+        }))
+    : [];
+
   const initialData = {
     nomor: submission?.nomor ?? "",
     instansi: submission?.instansi ?? lecturer.institution ?? "",
@@ -110,10 +164,9 @@ export default async function DosenDupakPage() {
     supportNotes: submission?.supportNotes ?? "",
     currentStep: submission?.currentStep ?? 1,
     evidences,
+    entries,
+    reviews,
   };
-
-  const status = (submission?.status || "DRAFT") as DupakStatus;
-  const editable = isLecturerEditable(status);
 
   // Catatan revisi yang memang ditujukan kepada dosen (bukan catatan internal).
   const revisionNotes = [

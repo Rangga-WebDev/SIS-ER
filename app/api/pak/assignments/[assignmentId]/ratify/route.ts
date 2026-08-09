@@ -6,7 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { createNotification, notifyAdmins } from "@/lib/notifications";
 import { logAudit, recordStatusHistory } from "@/lib/audit";
 import type { DupakStatus } from "@/lib/app-types";
-import { computeAssessmentCompleteness, toCreditData } from "@/lib/pak-access";
+import {
+  computeAssessmentCompleteness,
+  loadReviewValidation,
+  toCreditData,
+} from "@/lib/pak-access";
 
 export const runtime = "nodejs";
 
@@ -151,11 +155,25 @@ export async function POST(
         toCreditData(freshAssignment.submission.creditData),
       );
 
-      if (!completeness.isComplete) {
+      // Validasi review per item dilakukan ulang di dalam lock agar
+      // perubahan menit terakhir tetap tertangkap.
+      const reviewValidation = await loadReviewValidation({
+        assignmentId: freshAssignment.id,
+        submissionId: freshAssignment.submissionId,
+        creditData: toCreditData(freshAssignment.submission.creditData),
+        tx,
+      });
+
+      if (!reviewValidation.okForAccept) {
+        const pendingCount =
+          reviewValidation.issues.length + reviewValidation.outstanding.length;
+
         throw new RatificationError(
-          `Penilaian belum lengkap. ${completeness.missingRows.length} baris kegiatan belum dinilai.`,
+          `Penilaian belum lengkap. ${pendingCount} item belum tuntas dinilai.`,
           400,
-          completeness.missingRows.slice(0, 10),
+          [...reviewValidation.issues, ...reviewValidation.outstanding]
+            .slice(0, 10)
+            .map((issue) => `${issue.rowCode}: ${issue.message}`),
         );
       }
 

@@ -13,6 +13,7 @@ import {
   DUPAK_PERSONAL_FIELDS,
   DUPAK_TEMPLATE_ROWS,
   getNumberValue,
+  sumEntryCredits,
   type DupakCreditData,
   type DupakPersonalData,
 } from "@/lib/dupak-template";
@@ -176,6 +177,30 @@ export async function PATCH(request: Request) {
       toCreditData(data.creditData),
       toCreditData(existingSubmission?.creditData),
     );
+
+    // Baris yang memiliki rincian kegiatan: AK pengusul baru dihitung server
+    // dari jumlah rincian, bukan dari input bebas klien.
+    if (existingSubmission) {
+      const entries = await prisma.dupakItemEntry.findMany({
+        where: { submissionId: existingSubmission.id },
+        select: { rowCode: true, credit: true },
+      });
+
+      const entriesByRow = new Map<string, { credit: string | null }[]>();
+
+      for (const entry of entries) {
+        const list = entriesByRow.get(entry.rowCode) || [];
+        list.push(entry);
+        entriesByRow.set(entry.rowCode, list);
+      }
+
+      for (const [rowCode, rowEntries] of entriesByRow) {
+        creditData[rowCode] = {
+          ...(creditData[rowCode] || {}),
+          newProposer: String(sumEntryCredits(rowEntries)),
+        };
+      }
+    }
 
     const completionPercent = calculateCompletion({
       nomor: data.nomor,

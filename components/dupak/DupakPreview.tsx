@@ -1,5 +1,6 @@
 /** @format */
 
+import { Fragment } from "react";
 import {
   computeDupakSubtotals,
   DUPAK_PERSONAL_FIELDS,
@@ -22,6 +23,17 @@ export type DupakEvidencePreviewItem = {
   uploadedAt: Date | string;
 };
 
+export type DupakEntryPreviewItem = {
+  id: string;
+  rowCode: string;
+  title: string;
+  subCategory?: string | null;
+  activityYear?: string | null;
+  credit?: string | null;
+  evidenceUrl?: string | null;
+  orderIndex?: number;
+};
+
 type Props = {
   nomor?: string | null;
   instansi?: string | null;
@@ -32,6 +44,7 @@ type Props = {
   supportNotes?: string | null;
   evidences?: DupakEvidencePreviewItem[];
   showEvidenceColumn?: boolean;
+  entries?: DupakEntryPreviewItem[];
 };
 
 function formatDate(date?: string | Date | null) {
@@ -71,6 +84,7 @@ export default function DupakPreview({
   supportNotes,
   evidences = [],
   showEvidenceColumn = false,
+  entries = [],
 }: Props) {
   const evidenceMap = new Map<string, DupakEvidencePreviewItem>();
 
@@ -78,6 +92,18 @@ export default function DupakPreview({
     if (!evidenceMap.has(evidence.rowCode)) {
       evidenceMap.set(evidence.rowCode, evidence);
     }
+  }
+
+  const entriesByRow = new Map<string, DupakEntryPreviewItem[]>();
+
+  for (const entry of entries) {
+    const list = entriesByRow.get(entry.rowCode) || [];
+    list.push(entry);
+    entriesByRow.set(entry.rowCode, list);
+  }
+
+  for (const list of entriesByRow.values()) {
+    list.sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0));
   }
 
   const subtotals = computeDupakSubtotals(creditData);
@@ -183,6 +209,7 @@ export default function DupakPreview({
             {DUPAK_TEMPLATE_ROWS.map((row) => {
               const value = creditData?.[row.code];
               const evidence = evidenceMap.get(row.code) || null;
+              const rowEntries = entriesByRow.get(row.code) || [];
 
               if (row.type === "SECTION") {
                 return (
@@ -198,81 +225,128 @@ export default function DupakPreview({
               }
 
               return (
-                <tr
-                  key={row.code}
-                  className={row.type === "TOTAL" ? "bg-slate-100" : "bg-white"}
-                >
-                  <td
-                    className={`border border-slate-200 p-3 ${
-                      row.type === "TOTAL"
-                        ? "font-black text-slate-950"
-                        : "font-semibold text-slate-700"
-                    }`}
-                    style={{
-                      paddingLeft: `${12 + row.level * 18}px`,
-                    }}
+                <Fragment key={row.code}>
+                  <tr
+                    className={
+                      row.type === "TOTAL" ? "bg-slate-100" : "bg-white"
+                    }
                   >
-                    {row.label}
-                  </td>
+                    <td
+                      className={`border border-slate-200 p-3 ${
+                        row.type === "TOTAL"
+                          ? "font-black text-slate-950"
+                          : "font-semibold text-slate-700"
+                      }`}
+                      style={{
+                        paddingLeft: `${12 + row.level * 18}px`,
+                      }}
+                    >
+                      {row.label}
+                    </td>
 
-                  {row.type === "TOTAL" ? (
-                    (() => {
-                      const subtotal = subtotals[row.code];
+                    {row.type === "TOTAL" ? (
+                      (() => {
+                        const subtotal = subtotals[row.code];
 
-                      return (
-                        <>
-                          <Cell
-                            value={String(subtotal?.oldProposer || "")}
-                            bold
-                          />
-                          <Cell
-                            value={String(subtotal?.newProposer || "")}
-                            bold
-                          />
-                          <Cell
-                            value={String(subtotal?.proposerTotal || "")}
-                            bold
-                          />
-                          <Cell
-                            value={String(subtotal?.oldAssessor || "")}
-                            bold
-                          />
-                          <Cell
-                            value={String(subtotal?.newAssessor || "")}
-                            bold
-                          />
-                          <Cell
-                            value={String(subtotal?.assessorTotal || "")}
-                            bold
-                          />
-                        </>
-                      );
-                    })()
-                  ) : (
-                    <>
-                      <Cell value={value?.oldProposer} />
-                      <Cell value={value?.newProposer} />
-                      <Cell
-                        value={String(getProposerTotal(value) || "")}
-                        bold
+                        return (
+                          <>
+                            <Cell
+                              value={String(subtotal?.oldProposer || "")}
+                              bold
+                            />
+                            <Cell
+                              value={String(subtotal?.newProposer || "")}
+                              bold
+                            />
+                            <Cell
+                              value={String(subtotal?.proposerTotal || "")}
+                              bold
+                            />
+                            <Cell
+                              value={String(subtotal?.oldAssessor || "")}
+                              bold
+                            />
+                            <Cell
+                              value={String(subtotal?.newAssessor || "")}
+                              bold
+                            />
+                            <Cell
+                              value={String(subtotal?.assessorTotal || "")}
+                              bold
+                            />
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <>
+                        <Cell value={value?.oldProposer} />
+                        <Cell value={value?.newProposer} />
+                        <Cell
+                          value={String(getProposerTotal(value) || "")}
+                          bold
+                        />
+                        <Cell value={value?.oldAssessor} />
+                        <Cell value={value?.newAssessor} />
+                        <Cell
+                          value={String(getAssessorTotal(value) || "")}
+                          bold
+                        />
+                      </>
+                    )}
+
+                    {showEvidenceColumn && (
+                      <EvidencePreviewCell
+                        rowType={row.type}
+                        rowLabel={row.label}
+                        evidence={evidence}
                       />
-                      <Cell value={value?.oldAssessor} />
-                      <Cell value={value?.newAssessor} />
-                      <Cell
-                        value={String(getAssessorTotal(value) || "")}
-                        bold
-                      />
-                    </>
-                  )}
+                    )}
+                  </tr>
 
-                  {showEvidenceColumn && (
-                    <EvidencePreviewCell
-                      rowType={row.type}
-                      rowLabel={row.label}
-                      evidence={evidence}
-                    />
-                  )}
-                </tr>
+                  {/* Sub-baris rincian kegiatan milik baris ini. */}
+                  {row.type === "ITEM" &&
+                    rowEntries.map((entry, index) => (
+                      <tr key={entry.id} className="bg-slate-50/60">
+                        <td
+                          colSpan={showEvidenceColumn ? 8 : 7}
+                          className="border border-slate-200 py-2 pr-3 text-sm"
+                          style={{
+                            paddingLeft: `${12 + (row.level + 1) * 18}px`,
+                          }}
+                        >
+                          <span className="font-black text-slate-400">
+                            {index + 1}.
+                          </span>{" "}
+                          <span className="font-bold text-slate-700">
+                            {entry.title}
+                          </span>
+                          {entry.subCategory && (
+                            <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs font-black text-slate-600">
+                              {entry.subCategory}
+                            </span>
+                          )}
+                          {entry.activityYear && (
+                            <span className="ml-2 text-xs font-bold text-slate-400">
+                              ({entry.activityYear})
+                            </span>
+                          )}
+                          <span className="ml-2 text-xs font-black text-slate-500">
+                            AK: {entry.credit || "0"}
+                          </span>
+                          {entry.evidenceUrl && (
+                            <a
+                              href={entry.evidenceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-2 inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-black text-sky-700 transition hover:bg-sky-100"
+                            >
+                              Bukti ↗
+                            </a>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                </Fragment>
               );
             })}
           </tbody>
