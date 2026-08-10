@@ -492,57 +492,71 @@ export default function AssessmentWorkbench({
         )}
       </div>
 
-      {/* Tabel penilaian model FORMAT DUPAK */}
+      {/* Tabel penilaian model FORMAT DUPAK — muat satu layar tanpa scroll samping */}
       <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="w-full min-w-[1500px] text-left text-sm">
+        <div className="rounded-2xl border border-slate-200">
+          <table className="w-full table-fixed text-left text-xs">
+            <colgroup>
+              <col style={{ width: "26%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "5%" }} />
+              <col style={{ width: "6%" }} />
+              <col style={{ width: "38%" }} />
+            </colgroup>
             <thead>
               <tr className="bg-slate-950 text-white">
-                <th rowSpan={2} className="border border-slate-700 p-3">
+                <th
+                  rowSpan={2}
+                  className="border border-slate-700 p-1.5 text-[11px]"
+                >
                   Unsur/Sub Unsur/Butir Kegiatan
                 </th>
                 <th
                   colSpan={3}
-                  className="border border-slate-700 p-3 text-center"
+                  className="border border-slate-700 p-1.5 text-center text-[11px]"
                 >
                   Instansi Pengusul
                 </th>
                 <th
                   colSpan={3}
-                  className="border border-slate-700 p-3 text-center"
+                  className="border border-slate-700 p-1.5 text-center text-[11px]"
                 >
                   Tim Penilai
                 </th>
                 <th
                   rowSpan={2}
-                  className="border border-slate-700 p-3 text-center"
+                  className="border border-slate-700 p-1.5 text-center text-[11px]"
                 >
                   Bukti
                 </th>
                 <th
                   rowSpan={2}
-                  className="border border-slate-700 p-3 text-center"
+                  className="border border-slate-700 p-1.5 text-center text-[11px]"
                 >
                   Status & Komentar Tim Penilai
                 </th>
               </tr>
               <tr className="bg-slate-800 text-white">
-                <th className="border border-slate-700 p-3 text-center">
+                <th className="border border-slate-700 p-1 text-center text-[10px]">
                   Lama
                 </th>
-                <th className="border border-slate-700 p-3 text-center">
+                <th className="border border-slate-700 p-1 text-center text-[10px]">
                   Baru
                 </th>
-                <th className="border border-slate-700 p-3 text-center">
+                <th className="border border-slate-700 p-1 text-center text-[10px]">
                   Jumlah
                 </th>
-                <th className="border border-slate-700 p-3 text-center">
+                <th className="border border-slate-700 p-1 text-center text-[10px]">
                   Lama
                 </th>
-                <th className="border border-slate-700 p-3 text-center">
+                <th className="border border-slate-700 p-1 text-center text-[10px]">
                   Baru
                 </th>
-                <th className="border border-slate-700 p-3 text-center">
+                <th className="border border-slate-700 p-1 text-center text-[10px]">
                   Jumlah
                 </th>
               </tr>
@@ -555,7 +569,7 @@ export default function AssessmentWorkbench({
                     <tr key={row.code} className="bg-sky-50">
                       <td
                         colSpan={9}
-                        className="border border-slate-200 p-3 font-black text-sky-900"
+                        className="border border-slate-200 p-2 font-black text-sky-900"
                       >
                         {row.label}
                       </td>
@@ -568,8 +582,8 @@ export default function AssessmentWorkbench({
                     <tr key={row.code} className="bg-white">
                       <td
                         colSpan={9}
-                        className="border border-slate-200 p-3 font-bold text-slate-600"
-                        style={{ paddingLeft: `${12 + row.level * 18}px` }}
+                        className="border border-slate-200 p-2 font-bold text-slate-600"
+                        style={{ paddingLeft: `${8 + row.level * 12}px` }}
                       >
                         {row.label}
                       </td>
@@ -583,8 +597,8 @@ export default function AssessmentWorkbench({
                   return (
                     <tr key={row.code} className="bg-slate-100">
                       <td
-                        className="border border-slate-200 p-3 font-black text-slate-950"
-                        style={{ paddingLeft: `${12 + row.level * 18}px` }}
+                        className="border border-slate-200 p-2 font-black text-slate-950"
+                        style={{ paddingLeft: `${8 + row.level * 12}px` }}
                       >
                         {row.label}
                       </td>
@@ -594,10 +608,10 @@ export default function AssessmentWorkbench({
                       <TotalCell value={subtotal?.oldAssessor} />
                       <TotalCell value={subtotal?.newAssessor} />
                       <TotalCell value={subtotal?.assessorTotal} />
-                      <td className="border border-slate-200 p-3 text-center text-xs font-bold text-slate-400">
+                      <td className="border border-slate-200 p-1 text-center text-[10px] font-bold text-slate-400">
                         —
                       </td>
-                      <td className="border border-slate-200 p-3 text-center text-xs font-bold text-slate-400">
+                      <td className="border border-slate-200 p-1 text-center text-[10px] font-bold text-slate-400">
                         —
                       </td>
                     </tr>
@@ -615,17 +629,17 @@ export default function AssessmentWorkbench({
                   <RowGroup key={row.code}>
                     <tr className={isRequired ? "bg-white" : "bg-slate-50/50"}>
                       <td
-                        className="border border-slate-200 p-3 align-top font-semibold text-slate-700"
-                        style={{ paddingLeft: `${12 + row.level * 18}px` }}
+                        className="border border-slate-200 p-2 align-top font-semibold text-slate-700"
+                        style={{ paddingLeft: `${8 + row.level * 12}px` }}
                       >
                         {row.label}
                         {!isRequired && (
-                          <span className="mt-1 block text-[11px] font-bold text-slate-400">
+                          <span className="mt-0.5 block text-[10px] font-bold text-slate-400">
                             Tidak diajukan dosen
                           </span>
                         )}
                         {hasEntries && (
-                          <span className="mt-1 block text-[11px] font-black text-sky-600">
+                          <span className="mt-0.5 block text-[10px] font-black text-sky-600">
                             {rowEntries.length} rincian — nilai per rincian di
                             bawah
                           </span>
@@ -637,7 +651,7 @@ export default function AssessmentWorkbench({
                       <ComputedCell value={getProposerTotal(live)} />
 
                       {/* Tim Penilai: Lama */}
-                      <td className="border border-slate-200 p-2 align-top">
+                      <td className="border border-slate-200 p-1 align-top">
                         <NumberInput
                           value={oldAssessors[row.code] || ""}
                           disabled={readOnly}
@@ -650,16 +664,16 @@ export default function AssessmentWorkbench({
                       {/* Tim Penilai: Baru */}
                       {hasEntries ? (
                         <td
-                          className="border border-slate-200 bg-sky-50/60 p-2 text-center align-middle font-black text-sky-800"
+                          className="border border-slate-200 bg-sky-50/60 p-1 text-center align-middle font-black text-sky-800"
                           title="Dihitung otomatis dari rincian di bawah"
                         >
                           {live?.newAssessor || "-"}
-                          <span className="block text-[10px] font-bold text-sky-500">
+                          <span className="block text-[9px] font-bold text-sky-500">
                             otomatis
                           </span>
                         </td>
                       ) : (
-                        <td className="border border-slate-200 p-2 align-top">
+                        <td className="border border-slate-200 p-1 align-top">
                           <NumberInput
                             value={rowReview?.assessedCredit || ""}
                             disabled={readOnly}
@@ -680,19 +694,19 @@ export default function AssessmentWorkbench({
                       />
 
                       {/* Bukti level baris */}
-                      <td className="border border-slate-200 p-2 text-center align-middle">
+                      <td className="border border-slate-200 p-1 text-center align-middle">
                         {rowEvidence ? (
                           <EvidenceButton url={rowEvidence} />
                         ) : hasEntries ? (
-                          <span className="text-xs font-bold text-slate-400">
+                          <span className="text-[10px] font-bold text-slate-400">
                             per rincian
                           </span>
                         ) : isRequired ? (
-                          <span className="text-xs font-bold text-amber-600">
+                          <span className="text-[10px] font-bold text-amber-600">
                             Belum ada
                           </span>
                         ) : (
-                          <span className="text-xs font-bold text-slate-300">
+                          <span className="text-[10px] font-bold text-slate-300">
                             -
                           </span>
                         )}
@@ -700,7 +714,7 @@ export default function AssessmentWorkbench({
 
                       {/* Status + komentar level baris */}
                       {hasEntries ? (
-                        <td className="border border-slate-200 p-2 text-center align-middle text-xs font-bold text-slate-400">
+                        <td className="border border-slate-200 p-2 text-center align-middle text-[10px] font-bold text-slate-400">
                           Nilai per rincian
                         </td>
                       ) : (
@@ -721,18 +735,18 @@ export default function AssessmentWorkbench({
                       return (
                         <tr key={entry.id} className="bg-sky-50/30">
                           <td
-                            className="border border-slate-200 p-3 align-top"
+                            className="border border-slate-200 p-2 align-top"
                             style={{
-                              paddingLeft: `${12 + (row.level + 1) * 18}px`,
+                              paddingLeft: `${8 + (row.level + 1) * 12}px`,
                             }}
                           >
-                            <span className="text-xs font-black text-slate-400">
+                            <span className="text-[10px] font-black text-slate-400">
                               {index + 1}.
                             </span>{" "}
-                            <span className="text-sm font-black text-slate-800">
+                            <span className="text-xs font-black text-slate-800">
                               {entry.title}
                             </span>
-                            <span className="mt-0.5 block text-xs font-bold text-slate-500">
+                            <span className="mt-0.5 block text-[10px] font-bold text-slate-500">
                               {[entry.subCategory, entry.activityYear]
                                 .filter(Boolean)
                                 .join(" • ") || ""}
@@ -741,7 +755,7 @@ export default function AssessmentWorkbench({
 
                           <td
                             colSpan={3}
-                            className="border border-slate-200 p-2 text-center align-middle font-bold text-slate-600"
+                            className="border border-slate-200 p-1 text-center align-middle text-[11px] font-bold text-slate-600"
                           >
                             AK Diajukan:{" "}
                             <span className="font-black text-slate-900">
@@ -751,13 +765,13 @@ export default function AssessmentWorkbench({
 
                           <td
                             colSpan={3}
-                            className="border border-slate-200 p-2 align-middle"
+                            className="border border-slate-200 p-1 align-middle"
                           >
-                            <div className="flex items-center justify-center gap-2">
-                              <span className="text-xs font-black text-slate-500">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className="text-[10px] font-black text-slate-500">
                                 AK Dinilai:
                               </span>
-                              <div className="w-24">
+                              <div className="w-16">
                                 <NumberInput
                                   value={entryReview?.assessedCredit || ""}
                                   disabled={readOnly}
@@ -771,13 +785,13 @@ export default function AssessmentWorkbench({
                             </div>
                           </td>
 
-                          <td className="border border-slate-200 p-2 text-center align-middle">
+                          <td className="border border-slate-200 p-1 text-center align-middle">
                             {entry.evidenceUrl || rowEvidence ? (
                               <EvidenceButton
                                 url={(entry.evidenceUrl || rowEvidence)!}
                               />
                             ) : (
-                              <span className="text-xs font-bold text-amber-600">
+                              <span className="text-[10px] font-bold text-amber-600">
                                 Belum ada
                               </span>
                             )}
@@ -810,7 +824,7 @@ function RowGroup({ children }: { children: React.ReactNode }) {
 
 function StaticCell({ value }: { value?: string }) {
   return (
-    <td className="border border-slate-200 bg-slate-50 p-2 text-center align-middle font-bold text-slate-600">
+    <td className="border border-slate-200 bg-slate-50 p-1 text-center align-middle text-xs font-bold text-slate-600">
       {String(value || "").trim() || "-"}
     </td>
   );
@@ -818,7 +832,7 @@ function StaticCell({ value }: { value?: string }) {
 
 function ComputedCell({ value }: { value: number }) {
   return (
-    <td className="border border-slate-200 bg-slate-50 p-2 text-center align-middle font-black text-slate-800">
+    <td className="border border-slate-200 bg-slate-50 p-1 text-center align-middle text-xs font-black text-slate-800">
       {value || "-"}
     </td>
   );
@@ -826,7 +840,7 @@ function ComputedCell({ value }: { value: number }) {
 
 function TotalCell({ value }: { value?: number }) {
   return (
-    <td className="border border-slate-200 p-3 text-center font-black text-slate-950">
+    <td className="border border-slate-200 p-1.5 text-center text-xs font-black text-slate-950">
       {value || "-"}
     </td>
   );
@@ -851,7 +865,7 @@ function NumberInput({
         if (NUMERIC_PATTERN.test(next)) onChange(next);
       }}
       placeholder="0"
-      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-bold text-slate-800 outline-none transition focus:border-sky-400 focus:ring-4 focus:ring-sky-100 disabled:bg-slate-50 disabled:opacity-60"
+      className="w-full rounded-lg border border-slate-200 bg-white px-1 py-1.5 text-center text-xs font-bold text-slate-800 outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100 disabled:bg-slate-50 disabled:opacity-60"
     />
   );
 }
@@ -862,9 +876,9 @@ function EvidenceButton({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-xl bg-sky-700 px-3 py-2 text-xs font-black text-white transition hover:bg-sky-800"
+      className="inline-flex items-center gap-1 rounded-lg bg-sky-700 px-2 py-1.5 text-[10px] font-black text-white transition hover:bg-sky-800"
     >
-      <ExternalLink size={14} />
+      <ExternalLink size={11} />
       Bukti
     </a>
   );
@@ -885,11 +899,11 @@ function ReviewCell({
     status === "PERLU_REVISI" || status === "TIDAK_SESUAI";
 
   return (
-    <td className="border border-slate-200 p-2 align-top">
-      <div className="min-w-[240px] space-y-2">
+    <td className="border border-slate-200 p-1.5 align-top">
+      <div className="space-y-1.5">
         {status === "DIREVISI_DOSEN" && (
-          <p className="flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1.5 text-xs font-black text-sky-700">
-            <RefreshCw size={12} />
+          <p className="flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700">
+            <RefreshCw size={11} />
             Direvisi dosen — nilai ulang
           </p>
         )}
@@ -902,7 +916,7 @@ function ReviewCell({
               status: event.target.value as WorkbenchReview["status"],
             })
           }
-          className={`w-full rounded-xl border px-3 py-2 text-sm font-black outline-none transition focus:border-sky-400 disabled:opacity-60 ${
+          className={`w-full rounded-lg border px-2 py-1.5 text-xs font-black outline-none transition focus:border-sky-400 disabled:opacity-60 ${
             status === "SESUAI"
               ? "border-emerald-300 bg-emerald-50 text-emerald-800"
               : status === "PERLU_REVISI"
@@ -928,7 +942,7 @@ function ReviewCell({
               ? "Komentar wajib — jelaskan yang perlu diperbaiki dosen..."
               : "Komentar untuk dosen (opsional)..."
           }
-          className={`min-h-16 w-full rounded-xl border px-3 py-2 text-sm font-semibold text-slate-700 outline-none transition focus:bg-white disabled:opacity-60 ${
+          className={`min-h-12 w-full rounded-lg border px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:bg-white disabled:opacity-60 ${
             commentRequired && !comment.trim()
               ? "border-rose-300 bg-rose-50 focus:border-rose-400"
               : "border-slate-200 bg-slate-50 focus:border-sky-400"
@@ -936,7 +950,7 @@ function ReviewCell({
         />
 
         {commentRequired && !comment.trim() && (
-          <p className="text-[11px] font-black text-rose-600">
+          <p className="text-[10px] font-black text-rose-600">
             Komentar wajib untuk status ini.
           </p>
         )}
