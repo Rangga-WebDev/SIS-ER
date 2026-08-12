@@ -1,11 +1,12 @@
 /** @format */
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserRoles } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import MetricCard from "@/components/dashboard/MetricCard";
 import ActivityTimeline from "@/components/dashboard/AcitivityTimeline";
+import type { Role } from "@/lib/app-types";
 
 import {
   ArrowRight,
@@ -14,6 +15,7 @@ import {
   FileText,
   GraduationCap,
   RotateCcw,
+  Scale,
   ShieldCheck,
   UsersRound,
   XCircle,
@@ -50,6 +52,8 @@ export default async function AdminDashboardPage() {
 
   if (!user) redirect("/login");
   if (user.role !== "ADMIN") redirect("/login");
+
+  const userRoles = getUserRoles(user);
 
   const [
     dosen,
@@ -170,13 +174,79 @@ export default async function AdminDashboardPage() {
     { label: "Pengajuan Selesai", value: statusCount(["SELESAI"]) },
   ];
 
+  const availableWorkspaceCards = [
+    {
+      role: "KOMITE_INTEGRITAS_AKADEMIK",
+      title: "Dashboard Komite",
+      desc: "Periksa integritas akademik, proporsi penelitian, artikel, korespondensi, Turnitin, dan rekomendasi.",
+      href: "/komite/dashboard",
+      icon: <ShieldCheck size={22} />,
+    },
+    {
+      role: "TIM_SENAT",
+      title: "Dashboard Tim Senat",
+      desc: "Tinjau berita acara dan beri keputusan akhir senat untuk pengajuan yang sudah lolos komite.",
+      href: "/senat/dashboard",
+      icon: <Scale size={22} />,
+    },
+  ] satisfies {
+    role: Role;
+    title: string;
+    desc: string;
+    href: string;
+    icon: React.ReactNode;
+  }[];
+
+  const workspaceCards = availableWorkspaceCards.filter((workspace) =>
+    userRoles.includes(workspace.role),
+  );
+
   return (
     <AppShell
       role="ADMIN"
+      availableRoles={userRoles}
       title="Dashboard Admin"
       subtitle="Pantau dokumen dosen, status verifikasi, dan aktivitas pengajuan secara terpusat."
     >
       <div className="space-y-6">
+        {workspaceCards.length > 0 && (
+          <section className="rounded-[2rem] border border-cyan-200 bg-cyan-50/80 p-5 shadow-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.24em] text-cyan-700">
+                  Pindah Workspace
+                </p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">
+                  Akses Cepat Dashboard Lain
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {workspaceCards.map((workspace) => (
+                <Link
+                  key={workspace.href}
+                  href={workspace.href}
+                  className="group flex items-center gap-4 rounded-2xl border border-cyan-200 bg-white p-4 text-slate-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-700 hover:text-white"
+                >
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700 transition group-hover:bg-white/15 group-hover:text-white">
+                    {workspace.icon}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black">{workspace.title}</p>
+                    <p className="mt-1 text-sm font-semibold leading-6 opacity-75">
+                      {workspace.desc}
+                    </p>
+                  </div>
+
+                  <ArrowRight size={18} className="shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Total Dosen"

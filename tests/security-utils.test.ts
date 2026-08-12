@@ -92,6 +92,13 @@ describe("DUPAK role policy", () => {
       evaluateDupakAccess({
         ...base,
         role: "KOMITE_INTEGRITAS_AKADEMIK",
+        status: "LOLOS_VERIFIKASI_ADMIN",
+      }),
+    ).toBe(true);
+    expect(
+      evaluateDupakAccess({
+        ...base,
+        role: "KOMITE_INTEGRITAS_AKADEMIK",
         status: "PEMERIKSAAN_INTEGRITAS",
       }),
     ).toBe(true);

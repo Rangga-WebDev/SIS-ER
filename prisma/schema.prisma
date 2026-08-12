@@ -123,6 +123,10 @@ model User {
   role         Role          @default(DOSEN)
   status       AccountStatus @default(ACTIVE)
 
+  // Peran tambahan agar satu akun bisa membuka beberapa workspace (mis. admin
+  // yang juga anggota Komite Integritas dan Tim Senat). role tetap peran utama.
+  additionalRoles Role[] @default([])
+
   // Dinaikkan saat reset password untuk mencabut seluruh sesi JWT lama.
   tokenVersion Int @default(0)
 

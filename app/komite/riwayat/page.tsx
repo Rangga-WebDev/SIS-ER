@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { GaugeCircle } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserRoles, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import Pagination from "@/components/ui/Pagination";
@@ -28,7 +28,7 @@ export default async function KomiteRiwayatPage({
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
-  if (user.role !== "KOMITE_INTEGRITAS_AKADEMIK") redirect("/login");
+  if (!hasRole(user, "KOMITE_INTEGRITAS_AKADEMIK")) redirect("/login");
 
   const params = await searchParams;
   const { page, pageSize, skip } = getPagination(params);
@@ -71,6 +71,7 @@ export default async function KomiteRiwayatPage({
   return (
     <AppShell
       role="KOMITE_INTEGRITAS_AKADEMIK"
+      availableRoles={getUserRoles(user)}
       title="Riwayat Pemeriksaan"
       subtitle="Seluruh keputusan pemeriksaan integritas akademik yang pernah diberikan."
     >

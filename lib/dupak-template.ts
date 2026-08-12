@@ -666,6 +666,43 @@ export function computeDupakSubtotals(
   return result;
 }
 
+export type DupakResearchProportion = {
+  researchCredit: number;
+  totalCredit: number;
+  percent: number;
+  // Dasar hitung: nilai tim penilai bila penilaian sudah ada, jika belum
+  // memakai nilai yang diajukan pengusul.
+  basis: "DINILAI" | "DIAJUKAN";
+};
+
+// Proporsi penelitian = persentase angka kredit unsur PENELITIAN terhadap
+// jumlah keseluruhan (unsur utama + penunjang) pada DUPAK.
+export function computeResearchProportion(
+  creditData?: DupakCreditData | null,
+): DupakResearchProportion {
+  const subtotals = computeDupakSubtotals(creditData);
+  const research = subtotals["JUMLAH_UNSUR_PENELITIAN"];
+  const grand = subtotals[DUPAK_GRAND_TOTAL_CODE];
+
+  const assessedTotal = grand?.assessorTotal || 0;
+  const useAssessed = assessedTotal > 0;
+
+  const researchCredit = useAssessed
+    ? research?.assessorTotal || 0
+    : research?.proposerTotal || 0;
+  const totalCredit = useAssessed ? assessedTotal : grand?.proposerTotal || 0;
+
+  const percent =
+    totalCredit > 0 ? round2((researchCredit / totalCredit) * 100) : 0;
+
+  return {
+    researchCredit,
+    totalCredit,
+    percent,
+    basis: useAssessed ? "DINILAI" : "DIAJUKAN",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Rincian kegiatan (sub-item) per baris DUPAK — pola SISTER/LLDIKTI.
 // ---------------------------------------------------------------------------

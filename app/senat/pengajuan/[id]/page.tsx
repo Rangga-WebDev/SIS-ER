@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ScrollText } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserRoles, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import StatusTimeline from "@/components/workflow/StatusTimeline";
@@ -45,7 +45,7 @@ export default async function SenatPengajuanDetailPage({
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
-  if (user.role !== "TIM_SENAT") redirect("/login");
+  if (!hasRole(user, "TIM_SENAT")) redirect("/login");
 
   const { id } = await params;
 
@@ -114,6 +114,7 @@ export default async function SenatPengajuanDetailPage({
   return (
     <AppShell
       role="TIM_SENAT"
+      availableRoles={getUserRoles(user)}
       title="Tinjauan Tim Senat"
       subtitle="Berita acara pemeriksaan, hasil penilaian yang disahkan, dan keputusan senat."
     >

@@ -18,6 +18,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
+import CommitteeDocumentLinkPanel from "@/components/dosen/CommitteeDocumentLinkPanel";
 import DocumentUploadClient from "@/components/dosen/DocumentUploadClient";
 import DocumentVersionHistory from "@/components/documents/DocumentVersionHistory";
 import FilePreviewModal from "@/components/documents/FilePreviewModal";
@@ -25,6 +26,13 @@ import type { DocumentStatus } from "@/lib/app-types";
 import type { ReactNode } from "react";
 
 const multiTextMetadataCodes = ["MATA_KULIAH_DIAMPU", "RANTING_ILMU_KEPAKARAN"];
+
+const committeeDocumentCodes = [
+  "DOKUMEN_ARTIKEL",
+  "DOKUMEN_KORESPONDENSI",
+  "DOKUMEN_UJI_KEMIRIPAN",
+  "REKOMENDASI_FAKULTAS",
+] as const;
 
 function isMultiTextMetadataRequirement(code: string) {
   return multiTextMetadataCodes.includes(code);
@@ -285,6 +293,40 @@ export default async function DosenDokumenPage({
     0,
   );
 
+  const committeeDocumentItems = committeeDocumentCodes.flatMap((code) => {
+    const matched = categories
+      .flatMap((category) =>
+        category.requirements.map((requirement) => ({ category, requirement })),
+      )
+      .find((item) => item.requirement.code === code);
+
+    if (!matched) return [];
+
+    const { category, requirement } = matched;
+
+    const submission = requirement.submissions[0];
+
+    return [
+      {
+        requirementId: requirement.id,
+        code: requirement.code,
+        name: requirement.name,
+        sourceCategory: category.name,
+        description: requirement.description || requirement.helperText || "-",
+        submission: submission
+          ? {
+              id: submission.id,
+              status: submission.status,
+              fileName: submission.fileName,
+              externalUrl: submission.externalUrl,
+              hasFile: Boolean(submission.storagePath),
+              uploadedAt: submission.uploadedAt.toISOString(),
+            }
+          : null,
+      },
+    ];
+  });
+
   return (
     <AppShell
       role="DOSEN"
@@ -393,6 +435,8 @@ export default async function DosenDokumenPage({
             tone="amber"
           />
         </section>
+
+        <CommitteeDocumentLinkPanel items={committeeDocumentItems} />
 
         {query && (
           <section className="flex flex-col gap-3 rounded-[2rem] border border-sky-200 bg-sky-50 p-5 sm:flex-row sm:items-center sm:justify-between">

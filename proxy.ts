@@ -125,7 +125,13 @@ export async function proxy(request: NextRequest) {
       return unauthorized(request, "Session tidak valid.");
     }
 
-    if (!guard.roles.includes(role as SessionRole)) {
+    // Gabungkan peran utama dengan peran tambahan (akun multi-workspace).
+    const additionalRoles = Array.isArray(payload.additionalRoles)
+      ? (payload.additionalRoles as string[])
+      : [];
+    const userRoles = [role, ...additionalRoles];
+
+    if (!guard.roles.some((allowed) => userRoles.includes(allowed))) {
       return forbidden(request, "Role tidak memiliki akses.");
     }
 

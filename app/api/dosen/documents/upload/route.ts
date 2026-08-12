@@ -229,10 +229,10 @@ export async function POST(request: Request) {
 
     const nextVersionNumber = latestVersion + 1;
 
-    let fileName: string | null = null;
-    let fileSize: number | null = null;
-    let mimeType: string | null = null;
-    let storagePath: string | null = null;
+    let fileName: string | null = existingSubmission?.fileName ?? null;
+    let fileSize: number | null = existingSubmission?.fileSize ?? null;
+    let mimeType: string | null = existingSubmission?.mimeType ?? null;
+    let storagePath: string | null = existingSubmission?.storagePath ?? null;
 
     if (canUploadIncomingFile && file instanceof File) {
       fileName = safeFileName(file.name);

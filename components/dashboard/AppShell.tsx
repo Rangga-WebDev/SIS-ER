@@ -12,6 +12,7 @@ import FilePreviewModal from "@/components/documents/FilePreviewModal";
 import Image from "next/image";
 
 import {
+  ArrowLeftRight,
   BarChart3,
   Bell,
   BookOpenCheck,
@@ -43,6 +44,9 @@ type AppShellProps = {
   title: string;
   subtitle: string;
   role: Role;
+  // Seluruh peran yang dimiliki akun (peran utama + tambahan). Dipakai untuk
+  // menampilkan pindah workspace bagi akun multi-peran.
+  availableRoles?: string[];
 };
 
 type NavItem = {
@@ -199,11 +203,44 @@ const ROLE_DESCS: Record<Role, string> = {
   TIM_SENAT: "Tinjau berita acara dan beri keputusan senat.",
 };
 
+// Tujuan pindah workspace per peran (dipakai akun multi-peran).
+const WORKSPACE_LINKS: Record<
+  Role,
+  { href: string; label: string; icon: React.ReactNode }
+> = {
+  DOSEN: {
+    href: "/dosen/dashboard",
+    label: "Workspace Dosen",
+    icon: <BookOpenCheck size={18} />,
+  },
+  ADMIN: {
+    href: "/admin/dashboard",
+    label: "Workspace Admin",
+    icon: <ShieldCheck size={18} />,
+  },
+  TIM_PAK: {
+    href: "/pak/dashboard",
+    label: "Workspace Tim PAK",
+    icon: <ClipboardCheck size={18} />,
+  },
+  KOMITE_INTEGRITAS_AKADEMIK: {
+    href: "/komite/dashboard",
+    label: "Workspace Komite Integritas",
+    icon: <GaugeCircle size={18} />,
+  },
+  TIM_SENAT: {
+    href: "/senat/dashboard",
+    label: "Workspace Tim Senat",
+    icon: <Scale size={18} />,
+  },
+};
+
 export default function AppShell({
   children,
   title,
   subtitle,
   role,
+  availableRoles = [],
 }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -212,6 +249,12 @@ export default function AppShell({
   const [query, setQuery] = useState(searchParams.get("q") || "");
 
   const navItems = NAVS[role] || dosenNav;
+
+  // Workspace lain yang bisa dibuka akun ini (selain yang sedang aktif).
+  const otherWorkspaces = Array.from(new Set(availableRoles)).filter(
+    (candidate): candidate is Role =>
+      candidate !== role && candidate in WORKSPACE_LINKS,
+  );
 
   const getSearchTarget = () => {
     if (role === "ADMIN") {
@@ -239,10 +282,10 @@ export default function AppShell({
   };
 
   return (
-    <main className="min-h-screen bg-[#f6f8fb] text-slate-900">
+    <main className="min-h-screen overflow-x-hidden bg-[#f6f8fb] text-slate-900">
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.13),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.08),transparent_34%)]" />
 
-      <div className="mx-auto grid min-h-screen max-w-[1500px] gap-6 p-4 lg:grid-cols-[300px_1fr] lg:p-6">
+      <div className="mx-auto grid min-h-screen max-w-[1500px] gap-4 p-3 sm:p-4 lg:grid-cols-[300px_minmax(0,1fr)] lg:p-5 xl:gap-5">
         <aside className="hidden lg:block">
           <div className="sticky top-6 flex h-[calc(100vh-48px)] flex-col overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white/90 shadow-xl shadow-slate-200/60 backdrop-blur-xl">
             <div className="border-b border-slate-100 p-5">
@@ -257,11 +300,11 @@ export default function AppShell({
                   />
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <p className="text-xl font-black tracking-tight text-slate-950">
                     JAFUNG SMART
                   </p>
-                  <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
+                  <p className="mt-0.5 truncate text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
                     {role} Workspace
                   </p>
                 </div>
@@ -283,6 +326,44 @@ export default function AppShell({
                   {ROLE_DESCS[role]}
                 </p>
               </div>
+
+              {otherWorkspaces.length > 0 && (
+                <div className="mb-5 rounded-3xl border border-cyan-200 bg-cyan-50/80 p-4">
+                  <div className="mb-3 flex items-center gap-2 text-cyan-800">
+                    <ArrowLeftRight size={17} />
+                    <p className="text-xs font-black uppercase tracking-[0.2em]">
+                      Pindah Workspace
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    {otherWorkspaces.map((workspaceRole) => {
+                      const workspace = WORKSPACE_LINKS[workspaceRole];
+
+                      return (
+                        <Link
+                          key={workspaceRole}
+                          href={workspace.href}
+                          className="group flex items-center gap-3 rounded-2xl border border-cyan-200 bg-white px-4 py-3 text-slate-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-700 hover:text-white"
+                        >
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-50 text-cyan-700 transition group-hover:bg-white/15 group-hover:text-white">
+                            {workspace.icon}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-black">
+                              {workspace.label}
+                            </p>
+                            <p className="mt-0.5 text-xs font-semibold opacity-70">
+                              Buka dashboard
+                            </p>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <p className="mb-3 px-2 text-xs font-black uppercase tracking-[0.24em] text-slate-400">
                 Navigasi
@@ -399,10 +480,10 @@ export default function AppShell({
         </aside>
 
         <section className="min-w-0">
-          <header className="sticky top-4 z-40 mb-6 rounded-[2rem] border border-slate-200/80 bg-white/90 p-4 shadow-xl shadow-slate-200/50 backdrop-blur-xl lg:top-6">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="min-w-0">
-                <div className="mb-3 flex flex-wrap items-center gap-2">
+          <header className="mb-4 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/95 p-3 shadow-sm shadow-slate-200/50 backdrop-blur-xl lg:p-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-sky-700">
                     {role} Workspace
                   </span>
@@ -412,19 +493,40 @@ export default function AppShell({
                   </span>
                 </div>
 
-                <h1 className="text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+                <h1 className="break-words text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
                   {title}
                 </h1>
 
-                <p className="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-600 md:text-base">
+                <p className="mt-1 max-w-3xl break-words text-sm font-medium leading-6 text-slate-600">
                   {subtitle}
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center xl:justify-end">
+                {otherWorkspaces.length > 0 && (
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    {otherWorkspaces.map((workspaceRole) => {
+                      const workspace = WORKSPACE_LINKS[workspaceRole];
+
+                      return (
+                        <Link
+                          key={workspaceRole}
+                          href={workspace.href}
+                          className="inline-flex max-w-full items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-black text-cyan-800 transition hover:bg-cyan-700 hover:text-white"
+                        >
+                          <span className="shrink-0">{workspace.icon}</span>
+                          <span className="min-w-0 truncate">
+                            {workspace.label.replace("Workspace ", "")}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+
                 <form
                   onSubmit={handleSearch}
-                  className="flex min-w-[260px] items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-500 transition focus-within:border-sky-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-sky-100"
+                  className="flex w-full min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-500 transition focus-within:border-sky-300 focus-within:bg-white focus-within:ring-4 focus-within:ring-sky-100 sm:w-60"
                 >
                   <button
                     type="submit"
@@ -446,7 +548,7 @@ export default function AppShell({
 
                 <NotificationCenter />
 
-                <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-black text-slate-700 shadow-sm md:flex">
+                <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-black text-slate-700 shadow-sm md:flex">
                   <BarChart3 size={18} className="text-sky-700" />
                   Live Monitor
                 </div>
@@ -458,7 +560,7 @@ export default function AppShell({
         </section>
       </div>
 
-      <nav className="fixed bottom-4 left-4 right-4 z-50 grid grid-cols-4 gap-2 rounded-[1.5rem] border border-slate-200 bg-white/95 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur-xl lg:hidden">
+      <nav className="fixed bottom-3 left-3 right-3 z-50 grid grid-cols-4 gap-1.5 rounded-[1.5rem] border border-slate-200 bg-white/95 p-2 shadow-2xl shadow-slate-900/10 backdrop-blur-xl lg:hidden">
         {navItems.slice(0, 3).map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -467,24 +569,24 @@ export default function AppShell({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center rounded-2xl px-3 py-3 text-xs font-black transition ${
+              className={`min-w-0 overflow-hidden rounded-2xl px-2 py-2.5 text-center text-[11px] font-black transition ${
                 active
                   ? "bg-sky-700 text-white"
                   : "text-slate-500 hover:bg-slate-50"
               }`}
             >
               {item.icon}
-              <span className="mt-1">{item.label}</span>
+              <span className="mt-1 block w-full truncate">{item.label}</span>
             </Link>
           );
         })}
 
         <Link
           href="/"
-          className="flex flex-col items-center justify-center rounded-2xl px-3 py-3 text-xs font-black text-slate-500 hover:bg-slate-50"
+          className="min-w-0 overflow-hidden rounded-2xl px-2 py-2.5 text-center text-[11px] font-black text-slate-500 hover:bg-slate-50"
         >
           <Home size={19} />
-          <span className="mt-1">Home</span>
+          <span className="mt-1 block w-full truncate">Home</span>
         </Link>
       </nav>
     </main>

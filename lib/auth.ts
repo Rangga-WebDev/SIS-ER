@@ -11,6 +11,7 @@ export type SessionPayload = JWTPayload & {
   userId?: string;
   email?: string;
   role?: Role;
+  additionalRoles?: Role[];
   status?: AccountStatus;
   tokenVersion?: number;
 };
@@ -70,9 +71,26 @@ export async function getCurrentUser() {
     id: user.id,
     email: user.email,
     role: user.role,
+    additionalRoles: user.additionalRoles,
     status: user.status,
     lecturerProfile: user.lecturerProfile,
   };
+}
+
+// Seluruh peran yang dimiliki akun (peran utama + peran tambahan).
+export function getUserRoles(user: {
+  role: Role;
+  additionalRoles?: Role[] | null;
+}): Role[] {
+  return [user.role, ...(user.additionalRoles ?? [])];
+}
+
+// Cek apakah akun memiliki suatu peran, baik sebagai peran utama maupun tambahan.
+export function hasRole(
+  user: { role: Role; additionalRoles?: Role[] | null },
+  role: Role,
+): boolean {
+  return getUserRoles(user).includes(role);
 }
 
 export async function requireUser(roles?: Role | Role[]) {
@@ -87,8 +105,9 @@ export async function requireUser(roles?: Role | Role[]) {
 
   if (roles) {
     const allowedRoles = Array.isArray(roles) ? roles : [roles];
+    const userRoles = getUserRoles(user);
 
-    if (!allowedRoles.includes(user.role)) {
+    if (!allowedRoles.some((role) => userRoles.includes(role))) {
       return {
         user: null,
         error: "FORBIDDEN",

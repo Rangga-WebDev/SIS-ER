@@ -52,8 +52,8 @@ export async function notifyAdmins({
 }: NotifyAdminsInput) {
   const admins = await prisma.user.findMany({
     where: {
-      role: "ADMIN",
       status: "ACTIVE",
+      OR: [{ role: "ADMIN" }, { additionalRoles: { has: "ADMIN" } }],
     },
     select: {
       id: true,
@@ -88,8 +88,8 @@ export async function notifyRole({
 }: NotifyRoleInput) {
   const users = await prisma.user.findMany({
     where: {
-      role,
       status: "ACTIVE",
+      OR: [{ role }, { additionalRoles: { has: role } }],
     },
     select: {
       id: true,

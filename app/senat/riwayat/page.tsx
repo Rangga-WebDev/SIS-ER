@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { Scale } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserRoles, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import Pagination from "@/components/ui/Pagination";
@@ -28,7 +28,7 @@ export default async function SenatRiwayatPage({
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
-  if (user.role !== "TIM_SENAT") redirect("/login");
+  if (!hasRole(user, "TIM_SENAT")) redirect("/login");
 
   const params = await searchParams;
   const { page, pageSize, skip } = getPagination(params);
@@ -71,6 +71,7 @@ export default async function SenatRiwayatPage({
   return (
     <AppShell
       role="TIM_SENAT"
+      availableRoles={getUserRoles(user)}
       title="Riwayat Keputusan Senat"
       subtitle="Seluruh keputusan Tim Senat yang pernah diberikan."
     >

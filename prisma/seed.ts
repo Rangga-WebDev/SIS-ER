@@ -315,6 +315,19 @@ const documentCategories: CategorySeed[] = [
         helperText:
           "Unggah surat pernyataan pemimpin dan isi nomor serta tanggal surat.",
       },
+      {
+        code: "REKOMENDASI_FAKULTAS",
+        name: "Rekomendasi Fakultas",
+        description:
+          "Surat rekomendasi dari fakultas pengusul yang mendukung proses kenaikan jabatan akademik.",
+        inputType: "FILE",
+        order: 5,
+        isRequired: true,
+        requiresLetterNumber: false,
+        requiresLetterDate: false,
+        helperText:
+          "Unggah surat rekomendasi fakultas atau tempel link Google Drive untuk pemeriksaan Tim Komite.",
+      },
     ],
   },
 ];
@@ -393,6 +406,35 @@ async function seedAssessorAdmins() {
   }
 }
 
+// Akun multi-peran: admin utama yang juga anggota Komite Integritas Akademik
+// dan Tim Senat, sehingga dapat membuka ketiga workspace.
+async function seedCommitteeMultiRoleAccount() {
+  const email = "trygustafsaid@unismuh.ac.id";
+  const accountName = email.split("@")[0];
+  const password = `${accountName}1234!`;
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  await prisma.user.upsert({
+    where: {
+      email,
+    },
+    update: {
+      role: "ADMIN",
+      additionalRoles: ["KOMITE_INTEGRITAS_AKADEMIK", "TIM_SENAT"],
+      status: "ACTIVE",
+    },
+    create: {
+      email,
+      passwordHash,
+      role: "ADMIN",
+      additionalRoles: ["KOMITE_INTEGRITAS_AKADEMIK", "TIM_SENAT"],
+      status: "ACTIVE",
+    },
+  });
+
+  console.log(`Akun multi-peran (Admin + Komite + Senat) aktif: ${email}`);
+}
+
 async function seedDocumentCategories() {
   for (const category of documentCategories) {
     const savedCategory = await prisma.documentCategory.upsert({
@@ -466,6 +508,7 @@ async function seedDocumentCategories() {
 async function main() {
   await seedAdminIfConfigured();
   await seedAssessorAdmins();
+  await seedCommitteeMultiRoleAccount();
   await seedDocumentCategories();
 }
 

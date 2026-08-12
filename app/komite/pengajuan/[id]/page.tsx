@@ -2,8 +2,15 @@
 
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, FileText } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth";
+import {
+  ArrowLeft,
+  Building2,
+  ExternalLink,
+  FileText,
+  Mail,
+  ScanSearch,
+} from "lucide-react";
+import { getCurrentUser, getUserRoles, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import StatusTimeline from "@/components/workflow/StatusTimeline";
@@ -33,7 +40,7 @@ export default async function KomitePengajuanDetailPage({
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
-  if (user.role !== "KOMITE_INTEGRITAS_AKADEMIK") redirect("/login");
+  if (!hasRole(user, "KOMITE_INTEGRITAS_AKADEMIK")) redirect("/login");
 
   const { id } = await params;
 
@@ -84,16 +91,29 @@ export default async function KomitePengajuanDetailPage({
 
   const status = submission.status as DupakStatus;
 
-  // Dokumen relevan: persyaratan khusus, karya ilmiah, dan dokumen pendukung.
+  // Dokumen Tim Komite: gabungan item Syarat Khusus + Rekomendasi Fakultas.
   const documents = submission.lecturer.submissions;
+  const rekomendasiFakultasDocs = documents.filter(
+    (document) => document.requirement.code === "REKOMENDASI_FAKULTAS",
+  );
+  const artikelDocs = documents.filter(
+    (document) => document.requirement.code === "DOKUMEN_ARTIKEL",
+  );
+  const korespondensiDocs = documents.filter(
+    (document) => document.requirement.code === "DOKUMEN_KORESPONDENSI",
+  );
+  const turnitinDocs = documents.filter(
+    (document) => document.requirement.code === "DOKUMEN_UJI_KEMIRIPAN",
+  );
 
   return (
     <AppShell
       role="KOMITE_INTEGRITAS_AKADEMIK"
+      availableRoles={getUserRoles(user)}
       title="Pemeriksaan Integritas Akademik"
-      subtitle="Riwayat pengusul, dokumen persyaratan khusus, dan keputusan pemeriksaan."
+      subtitle="Periksa dokumen artikel, korespondensi, uji kemiripan, dan rekomendasi fakultas."
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         <Link
           href="/komite/dashboard"
           className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -102,16 +122,16 @@ export default async function KomitePengajuanDetailPage({
           Kembali ke Dashboard
         </Link>
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <p className="text-sm font-black uppercase tracking-[0.25em] text-cyan-700">
             Riwayat Pengusul
           </p>
 
-          <h2 className="mt-2 text-3xl font-black text-slate-950">
+          <h2 className="mt-2 break-words text-2xl font-black text-slate-950 sm:text-3xl">
             {submission.lecturer.fullName}
           </h2>
 
-          <p className="mt-2 text-sm font-semibold text-slate-500">
+          <p className="mt-2 break-words text-sm font-semibold text-slate-500">
             {submission.lecturer.user.email} • NIDN/NUPTK:{" "}
             {submission.lecturer.nidnOrNuptk}
           </p>
@@ -137,73 +157,52 @@ export default async function KomitePengajuanDetailPage({
           histories={submission.statusHistories}
         />
 
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-700">
-              <FileText size={21} />
+              <ScanSearch size={21} />
             </div>
 
-            <div>
+            <div className="min-w-0">
               <h3 className="text-xl font-black text-slate-950">
-                Dokumen Pengusul ({documents.length})
+                Dokumen Tim Komite
               </h3>
-              <p className="text-sm font-semibold text-slate-500">
-                Termasuk persyaratan khusus, artikel ilmiah, korespondensi, dan
-                hasil Turnitin bila diunggah.
+              <p className="break-words text-sm font-semibold text-slate-500">
+                Gabungan item Syarat Khusus dan Dokumen Rekomendasi yang perlu
+                diperiksa oleh Tim Komite.
               </p>
             </div>
           </div>
 
-          {documents.length === 0 ? (
-            <p className="mt-4 rounded-2xl border border-dashed border-slate-300 p-4 text-sm font-bold text-slate-400">
-              Pengusul belum memiliki dokumen tersimpan.
-            </p>
-          ) : (
-            <div className="mt-4 grid gap-2">
-              {documents.map((document) => (
-                <div
-                  key={document.id}
-                  className="flex flex-col gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="text-sm font-black text-slate-900">
-                      {document.requirement.name}
-                    </p>
-                    <p className="text-xs font-bold text-slate-500">
-                      {document.requirement.category.name} • Status:{" "}
-                      {document.status} • {formatDateTime(document.uploadedAt)}
-                    </p>
-                  </div>
+          <div className="mt-5 grid gap-4">
+            <DocGroup
+              title="Artikel"
+              description="Artikel ilmiah yang menjadi bukti pendukung karya ilmiah."
+              icon={<FileText size={18} />}
+              documents={artikelDocs}
+            />
 
-                  <div className="flex gap-2">
-                    {document.storagePath && (
-                      <a
-                        href={`/api/files/${document.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-700 px-3 py-2 text-xs font-black text-white transition hover:bg-cyan-800"
-                      >
-                        <FileText size={13} />
-                        Buka File
-                      </a>
-                    )}
+            <DocGroup
+              title="Korespondensi"
+              description="Bukti submit, review, accepted, atau komunikasi dengan pengelola jurnal."
+              icon={<Mail size={18} />}
+              documents={korespondensiDocs}
+            />
 
-                    {document.externalUrl && (
-                      <a
-                        href={document.externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-100"
-                      >
-                        <ExternalLink size={13} />
-                        Buka Tautan
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            <DocGroup
+              title="Hasil Turnitin"
+              description="Dokumen uji kemiripan atau similarity check artikel ilmiah."
+              icon={<ScanSearch size={18} />}
+              documents={turnitinDocs}
+            />
+
+            <DocGroup
+              title="Rekomendasi Fakultas"
+              description="Surat rekomendasi dari fakultas pengusul."
+              icon={<Building2 size={18} />}
+              documents={rekomendasiFakultasDocs}
+            />
+          </div>
         </section>
 
         {submission.integrityReviews.length > 0 && (
@@ -257,7 +256,108 @@ function InfoBox({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-black uppercase tracking-widest text-slate-400">
         {label}
       </p>
-      <p className="mt-1 font-bold text-slate-900">{value}</p>
+      <p className="mt-1 break-words font-bold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+type IntegrityDocument = {
+  id: string;
+  status: string;
+  uploadedAt: Date | null;
+  storagePath: string | null;
+  externalUrl: string | null;
+  requirement: {
+    name: string;
+  };
+};
+
+function DocGroup({
+  title,
+  description,
+  icon,
+  documents,
+}: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  documents: IntegrityDocument[];
+}) {
+  return (
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-cyan-700 shadow-sm">
+          {icon}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="break-words font-black text-slate-900">{title}</p>
+          <p className="break-words text-xs font-semibold text-slate-500">
+            {description}
+          </p>
+        </div>
+
+        <span className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-black text-slate-500">
+          {documents.length} berkas
+        </span>
+      </div>
+
+      {documents.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 text-xs font-bold text-slate-400">
+          Belum ada dokumen pada bagian ini.
+        </p>
+      ) : (
+        <div className="mt-3 grid gap-2">
+          {documents.map((document) => (
+            <div
+              key={document.id}
+              className="grid min-w-0 gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+            >
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-slate-900">
+                  {document.requirement.name}
+                </p>
+                <p className="text-xs font-bold text-slate-500">
+                  Status: {document.status} •{" "}
+                  {document.uploadedAt
+                    ? new Intl.DateTimeFormat("id-ID", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      }).format(new Date(document.uploadedAt))
+                    : "-"}
+                </p>
+              </div>
+
+              <div className="flex min-w-0 flex-wrap gap-2 sm:justify-end">
+                {document.storagePath && (
+                  <a
+                    href={`/api/files/${document.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-cyan-700 px-3 py-2 text-xs font-black text-white transition hover:bg-cyan-800"
+                  >
+                    <FileText size={13} />
+                    Buka File
+                  </a>
+                )}
+
+                {document.externalUrl && (
+                  <a
+                    href={document.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 transition hover:bg-slate-100"
+                  >
+                    <ExternalLink size={13} />
+                    Buka Tautan
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

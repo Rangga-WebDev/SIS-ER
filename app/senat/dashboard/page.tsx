@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { ArrowRight, Scale } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, getUserRoles, hasRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import AppShell from "@/components/dashboard/AppShell";
 import MetricCard from "@/components/dashboard/MetricCard";
@@ -20,7 +20,7 @@ export default async function SenatDashboardPage({
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
-  if (user.role !== "TIM_SENAT") redirect("/login");
+  if (!hasRole(user, "TIM_SENAT")) redirect("/login");
 
   const params = await searchParams;
   const query = String(params.q || "").trim();
@@ -109,6 +109,7 @@ export default async function SenatDashboardPage({
   return (
     <AppShell
       role="TIM_SENAT"
+      availableRoles={getUserRoles(user)}
       title="Dashboard Tim Senat"
       subtitle="Tinjau berita acara Tim PAK yang telah disahkan dan beri keputusan senat."
     >
